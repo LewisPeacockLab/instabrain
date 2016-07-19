@@ -1,0 +1,6 @@
+##############################################
+# configuration file for instabrain feedback #
+##############################################
+
+watch_folder: /path/to/watch
+subject_folder: /path/to/subject
