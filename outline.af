@@ -1,6 +1,9 @@
 #############
 # localizer #
 #############
+# matlab code
+# calling freesurfer and SPM
+
 # subject_folder/ref/rai.nii
 # subject_folder/bold/run_001.nii .. run_00X.nii
 
@@ -17,6 +20,14 @@
 # feedback #
 ############
 # decouple front and back end
+
+# matlab code
+# backend imported as a class
+# runs asynchronously
+# backend does calculations as images appear in watch folder
+# backend has static (callback) component that can be accessed
+# - variable with last volume recorded
+# - buffer of classifier history
 
 # watch_folder 
 # - where images are dumped
@@ -41,3 +52,4 @@
 # - do moving average and then apply classifier?
 
 # basic frontend graphics for operant conditioning
+# with API instructions for other applications
