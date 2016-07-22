@@ -2,6 +2,7 @@ classdef testWatcher < handle
     properties
         watch_dir = '~/code/instabrain/data/'
         file_ext = '*.imgdat'
+        archive_dir
         match_dir
         read_files = {}
         in_process_files = {}
@@ -15,6 +16,7 @@ classdef testWatcher < handle
     methods
         function self = testWatcher
             self.match_dir = strcat(self.watch_dir,self.file_ext);
+            self.archive_dir = strcat(self.watch_dir,'archive');
         end
 
         function run(self)
@@ -31,10 +33,11 @@ classdef testWatcher < handle
                 slice = char(slice);
                 rep_num = str2num(cell2mat(regexp(slice,'(?<=-R).*(?=-E)','match')));
                 slice_num = str2num(cell2mat(regexp(slice,'(?<=-S).*(?=.imgdat)','match')));
-                self.fmri_data(rep_num,slice_num,:) = self.readSlice(strcat(self.watch_dir,slice));
-                %    - add to in_process list
-                %    - start processing
+                slice_dir = strcat(self.watch_dir,slice);
+                self.fmri_data(rep_num,slice_num,:) = self.readSlice(slice_dir);
+                % system(['mv ', slice_dir, ' ' self.archive_dir]);
             end
+            system(['mv ', self.match_dir, ' ' self.archive_dir]);
         end
 
         function showSlice(self, rep, slice)
