@@ -1,4 +1,4 @@
-classdef testWatcher < handle
+classdef TestWatcher < handle
     properties
         % watch_dir = '~/Dropbox/code/instabrain/data/'
         watch_dir = '~/code/instabrain/data/'

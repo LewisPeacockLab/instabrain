@@ -1,0 +1,10 @@
+###############################################
+# configuration file for instabrain localizer #
+###############################################
+
+SUBJECT_DIR: /belly/20160615-seqlearn-003
+FREESURFER_HOME: /usr/local/freesurfer
+FSL_DIR: /usr/share/fsl/5.0
+NUM_RUNS: 8
+VOLS_PER_RUN: 100
+TR: 2.7
