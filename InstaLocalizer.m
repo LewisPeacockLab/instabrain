@@ -29,6 +29,7 @@ classdef InstaLocalizer < handle
             self.tr = self.CONFIG.TR;
             self.vols = self.CONFIG.VOLS_PER_RUN;
             self.num_runs = self.CONFIG.NUM_RUNS;
+            % http://andysbrainblog.blogspot.com/2013/10/whats-in-spmmat-file.html 
         end
 
         function allPreprocessingSteps
