@@ -1,7 +1,10 @@
 classdef InstaClassifier < handle
     properties
     N_class = 4
+    base_dir = '/belly/seqlearn-staged'
     fmri_data
+    mask_img
+    mask_dims
     labels
     weights
     ix_eff
@@ -10,16 +13,23 @@ classdef InstaClassifier < handle
     end
 
     methods
-        function self = SimfeedClassifier
-            % initialization here
+        function self = InstaClassifier
+            % one ROI at a time for classifier
+        end
+
+        function loadFeatures(self, name)
+            self.fmri_data = [];
+        end
+
+        function loadMask(self, name)
+            self.mask_img = spm_read_vols(spm_vol([basedir '/' name '.nii']));
+            self.mask_dims = shape(self.mask_img);
+            self.mask_img = reshape(mask_img,[],1);
         end
 
         function trainClassifier(self)
-            basedir = '/belly/20160615-seqlearn-003/ref';
             betas_img = spm_read_vols(spm_vol([basedir '/betas.nii']));
-            mask_img = spm_read_vols(spm_vol([basedir '/masklhBA4a_bbr_rfi.nii']));
             betas_img_flat = reshape(betas_img,[],size(betas_img,4));
-            mask_img_flat = reshape(mask_img,[],1);
             roi_map = zeros(length(mask_img_flat),sum(mask_img_flat>0));
             roi_voxel = 1;
             for brain_voxel = 1:length(mask_img_flat)
@@ -38,7 +48,6 @@ classdef InstaClassifier < handle
         end
 
         function class_probs = applyClassifier(self, fmri_data)
-            % [tmp, label_est] = max(fmri_data' * self.weights(1:1000,:),[],2);
             eY = exp(fmri_data'*self.weights(1:1000,:)); % Nsamp*Nclass
             class_probs = eY ./ repmat(sum(eY,2), [1, self.N_class]); % Nsamp*Nclass
         end
