@@ -8,6 +8,7 @@ classdef InstaLocalizer < handle
         tr
         vols
         num_runs
+        labels = []
         feature_set = []
     end
 
@@ -63,10 +64,11 @@ classdef InstaLocalizer < handle
             for column = 1:length(raw_trial_data)
                 raw_trial_data{column} = raw_trial_data{column}(1:sequences_per_trial:length(raw_trial_data{column}));
             end
+            self.labels = []; % set labels based on trial data
 
             self.feature_set = [];
             for run = 1:self.num_runs
-                raw_img = spm_read_vols(spm_vol([self.bold_dir sprintf('/run_%3.3d.nii',run)]));
+                raw_img = spm_read_vols(spm_vol([self.bold_dir sprintf('/rrun_%3.3d.nii',run)]));
                 raw_img_flat = reshape(raw_img,[],size(raw_img,4));
                 dt_img_flat = detrend(raw_img_flat')';
                 zs_dt_img_flat = zscore(dt_img_flat')';
