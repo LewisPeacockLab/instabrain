@@ -2,7 +2,7 @@
 # configuration file for instabrain localizer #
 ###############################################
 
-SUBJECT_DIR: /belly/20160615-seqlearn-003
+SUBJECT_DIR: /belly/seqlearn-staged
 FREESURFER_HOME: /usr/local/freesurfer
 FSL_DIR: /usr/share/fsl/5.0
 NUM_RUNS: 8

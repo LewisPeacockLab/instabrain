@@ -10,6 +10,8 @@ classdef InstaLocalizer < handle
         num_runs
         labels = []
         feature_set = []
+        trs_trial_start_offset = 0
+        trs_per_trial = 5
     end
 
     methods
@@ -64,19 +66,28 @@ classdef InstaLocalizer < handle
             for column = 1:length(raw_trial_data)
                 raw_trial_data{column} = raw_trial_data{column}(1:sequences_per_trial:length(raw_trial_data{column}));
             end
-            self.labels = []; % set labels based on trial data
+            run_nums = cell2mat(raw_trial_data(1));
+            trial_nums = cell2mat(raw_trial_data(2));
+            raw_labels = raw_trial_data(5);
+            raw_labels = raw_labels{:};
+            unique_labels = unique(raw_labels);
+            self.labels = zeros(length(raw_labels),1); % set labels based on trial data
+            for label = 1:length(unique_labels)
+                self.labels(find(ismember(raw_labels,unique_labels(label)))) = label;
+            end
 
             self.feature_set = [];
-            for run = 1:self.num_runs
-                raw_img = spm_read_vols(spm_vol([self.bold_dir sprintf('/rrun_%3.3d.nii',run)]));
+            for run_num = 1:self.num_runs
+                raw_img = spm_read_vols(spm_vol([self.bold_dir sprintf('/rrun_%3.3d.nii',run_num)]));
                 raw_img_flat = reshape(raw_img,[],size(raw_img,4));
                 dt_img_flat = detrend(raw_img_flat')';
                 zs_dt_img_flat = zscore(dt_img_flat')';
                 avg_filter_a = 1;
                 avg_filter_b = [1/3 1/3 1/3];
                 filt_zs_dt_img_flat = filter(avg_filter_b, avg_filter_a, zs_dt_img_flat')';
-                for data_sample = 1:samples_per_run
-                    tr = 1; % set according to trial data
+
+                for data_sample = trial_nums(find(run_nums==run_num))'
+                    tr = self.trs_trial_start_offset + data_sample*self.trs_per_trial;
                     self.feature_set = [self.feature_set filt_zs_dt_img_flat(:,tr)];
                 end
             end
