@@ -9,7 +9,7 @@ classdef InstaLocalizer < handle
         vols
         num_runs
         labels = []
-        feature_set = []
+        features = []
         trs_trial_start_offset = 0
         trs_per_trial = 5
     end
@@ -76,7 +76,7 @@ classdef InstaLocalizer < handle
                 self.labels(find(ismember(raw_labels,unique_labels(label)))) = label;
             end
 
-            self.feature_set = [];
+            self.features = [];
             for run_num = 1:self.num_runs
                 raw_img = spm_read_vols(spm_vol([self.bold_dir sprintf('/rrun_%3.3d.nii',run_num)]));
                 raw_img_flat = reshape(raw_img,[],size(raw_img,4));
@@ -88,7 +88,7 @@ classdef InstaLocalizer < handle
 
                 for data_sample = trial_nums(find(run_nums==run_num))'
                     tr = self.trs_trial_start_offset + data_sample*self.trs_per_trial;
-                    self.feature_set = [self.feature_set filt_zs_dt_img_flat(:,tr)];
+                    self.features = [self.features filt_zs_dt_img_flat(:,tr)];
                 end
             end
         end
@@ -110,3 +110,5 @@ end
 % mri_tkregister2 --mov "template path" --s "subject id" --regheader --reg ./register.dat *that's the output file*
 % mri_label2vol --subject "subject id" --label "subject path"/label/"lh|rh"."BA6|BA4a|BA4p".label --temp "template path" --reg register.dat --proj frac 0 1 .1 --fillthresh .3 --hemi "lh|rh" --o "mask".nii.gz
 % mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/lh.BA4a.label --temp rfi.nii.gz --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o masklhBA4a_bbr_rfi.nii.gz
+% [temp, est] = max(clf2.applyClassifier(clf1.fmri_data'),[],2);sum( est == loc1.labels)/length(loc1.labels)
+% clf2.trainClassifier(loc2.features,loc2.labels,char(clf2.mask_names(1)),.8)

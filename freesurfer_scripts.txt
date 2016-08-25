@@ -1,0 +1,2 @@
+mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/rh.BA6.label --temp rfi.nii --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi rh --o fs_BA6_r_rfi.nii
+mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/lh.BA4p.label --temp rfi.nii --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o fs_BA4p_l_rfi.nii

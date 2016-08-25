@@ -5,11 +5,15 @@ classdef InstaClassifier < handle
     fmri_data
     mask_img
     mask_dims
+    mask_map
     labels
     weights
     ix_eff
     errTable_tr
     errTable_te
+    mask_names = {'fs_BA4a_r_rfi', 'fs_BA4p_r_rfi', 'fs_BA6_r_rfi', 'fs_BA4a_l_rfi', 'fs_BA4p_l_rfi', 'fs_BA6_l_rfi'}
+    cross_validation
+    selection_count
     end
 
     methods
@@ -22,38 +26,65 @@ classdef InstaClassifier < handle
         end
 
         function loadMask(self, name)
-            self.mask_img = spm_read_vols(spm_vol([basedir '/' name '.nii']));
-            self.mask_dims = shape(self.mask_img);
-            self.mask_img = reshape(mask_img,[],1);
+            self.mask_img = spm_read_vols(spm_vol([self.base_dir '/ref/' name '.nii']));
+            self.mask_dims = size(self.mask_img);
+            self.mask_img = reshape(self.mask_img,[],1);
         end
 
-        function trainClassifier(self)
-            betas_img = spm_read_vols(spm_vol([basedir '/betas.nii']));
-            betas_img_flat = reshape(betas_img,[],size(betas_img,4));
-            roi_map = zeros(length(mask_img_flat),sum(mask_img_flat>0));
+        function trainClassifier(self, features, labels, mask, train_ratio)
+            self.loadMask(mask);
+            self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
-            for brain_voxel = 1:length(mask_img_flat)
-                if mask_img_flat(brain_voxel)>0
-                    roi_map(brain_voxel,roi_voxel) = 1;
+            for brain_voxel = 1:length(self.mask_img)
+                if self.mask_img(brain_voxel)>0
+                    self.mask_map(brain_voxel,roi_voxel) = 1;
                     roi_voxel = roi_voxel + 1;
                 end
             end
-            self.fmri_data = betas_img_flat'*roi_map;
-            self.labels = repmat([1 2 3 4],[1 8])';
-            [ixtr,ixte] = separate_train_test(self.labels, 0.5);
+            self.fmri_data = features'*self.mask_map;
+            self.labels = labels;
+            [ixtr,ixte] = separate_train_test(self.labels, train_ratio);
 
             [self.weights, self.ix_eff, self.errTable_tr, self.errTable_te] = muclsfy_smlr(...
                 self.fmri_data(ixtr,:), self.labels(ixtr,:), self.fmri_data(ixte,:), self.labels(ixte,:),...
                 'wdisp_mode', 'iter', 'nlearn', 300, 'mean_mode', 'none', 'scale_mode', 'none');
         end
 
+        function calcSelectionCount(self, features, labels, mask, train_ratio)
+            self.loadMask(mask);
+            self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
+            roi_voxel = 1;
+            for brain_voxel = 1:length(self.mask_img)
+                if self.mask_img(brain_voxel)>0
+                    self.mask_map(brain_voxel,roi_voxel) = 1;
+                    roi_voxel = roi_voxel + 1;
+                end
+            end
+            self.fmri_data = features'*self.mask_map;
+            self.labels = labels;
+            for nn = 1 : 100
+                fprintf('\n\nCross Validation Trial : %3d \n', nn)
+                [ixtr, ixte] = separate_train_test(self.labels, train_ratio);
+                [ww, ix_eff, errTable_tr, errTable_te] = muclsfy_smlr(...
+                    self.fmri_data(ixtr,:), self.labels(ixtr,:), self.fmri_data(ixte,:), self.labels(ixte,:),...
+                    'wdisp_mode', 'iter', 'nlearn', 300, 'mean_mode', 'none', 'scale_mode', 'none');
+                CVRes(nn).ix_eff_all = ix_eff;
+                CVRes(nn).errTable_te = errTable_te;
+                CVRes(nn).errTable_tr = errTable_tr;
+            end
+
+            % N-value 
+            self.cross_validation = CVRes;
+            self.selection_count = calc_SCval(CVRes, {'Survived'});
+        end
+
         function class_probs = applyClassifier(self, fmri_data)
-            eY = exp(fmri_data'*self.weights(1:1000,:)); % Nsamp*Nclass
+            eY = exp(fmri_data'*self.weights(1:(size(self.weights,1)-1),:)); % Nsamp*Nclass
             class_probs = eY ./ repmat(sum(eY,2), [1, self.N_class]); % Nsamp*Nclass
         end
 
         function class_out = applyClassifierRaw(self, fmri_data)
-            class_out = fmri_data'*self.weights(1:1000,:);
+            class_out = fmri_data'*self.weights(1:(size(self.weights,1)-1),:);
         end
     end
 
