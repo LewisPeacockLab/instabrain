@@ -107,7 +107,7 @@ classdef InstaLocalizer < handle
 end
 
 % bbregister --s seqlearn-003 --mov rfi.nii.gz --init-fsl --bold --reg test_new_reg.dat
-% mri_tkregister2 --mov "template path" --s "subject id" --regheader --reg ./register.dat *that's the output file*
+% tkregister2 --mov "template path" --s "subject id" --regheader --reg ./register.dat *that's the output file*
 % mri_label2vol --subject "subject id" --label "subject path"/label/"lh|rh"."BA6|BA4a|BA4p".label --temp "template path" --reg register.dat --proj frac 0 1 .1 --fillthresh .3 --hemi "lh|rh" --o "mask".nii.gz
 % mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/lh.BA4a.label --temp rfi.nii.gz --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o masklhBA4a_bbr_rfi.nii.gz
 % [temp, est] = max(clf2.applyClassifier(clf1.fmri_data'),[],2);sum( est == loc1.labels)/length(loc1.labels)

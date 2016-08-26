@@ -34,7 +34,9 @@ classdef InstaClassifier < handle
             out_img_all_classes = self.mask_map*self.weights(1:(size(self.weights,1)-1),:);
             for class_type = 1:self.N_class
                 out_header.fname = [self.base_dir '/ref/' name '-class-' num2str(class_type) '.nii'];
-                spm_write_vol(out_header, out_img_all_classes(:,class_type));
+                class_img = out_img_all_classes(:,class_type);
+                class_img = reshape(class_img, self.mask_dims);
+                spm_write_vol(out_header, class_img);
             end
         end
 
