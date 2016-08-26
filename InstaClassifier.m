@@ -50,7 +50,7 @@ classdef InstaClassifier < handle
                 'wdisp_mode', 'iter', 'nlearn', 300, 'mean_mode', 'none', 'scale_mode', 'none');
         end
 
-        function calcSelectionCount(self, features, labels, mask, train_ratio)
+        function calcSelectionCount(self, features, labels, mask, iters, train_ratio)
             self.loadMask(mask);
             self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
@@ -62,15 +62,16 @@ classdef InstaClassifier < handle
             end
             self.fmri_data = features'*self.mask_map;
             self.labels = labels;
-            for nn = 1 : 100
+            for nn = 1:iters
                 fprintf('\n\nCross Validation Trial : %3d \n', nn)
                 [ixtr, ixte] = separate_train_test(self.labels, train_ratio);
-                [ww, ix_eff, errTable_tr, errTable_te] = muclsfy_smlr(...
+                [ww, ix_eff, errTable_tr, errTable_te, parms] = muclsfy_smlr(...
                     self.fmri_data(ixtr,:), self.labels(ixtr,:), self.fmri_data(ixte,:), self.labels(ixte,:),...
                     'wdisp_mode', 'iter', 'nlearn', 300, 'mean_mode', 'none', 'scale_mode', 'none');
                 CVRes(nn).ix_eff_all = ix_eff;
                 CVRes(nn).errTable_te = errTable_te;
                 CVRes(nn).errTable_tr = errTable_tr;
+                CVRes(nn).g = parms;
             end
 
             % N-value 
