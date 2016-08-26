@@ -32,7 +32,7 @@ classdef InstaClassifier < handle
         end
 
         function trainClassifier(self, features, labels, mask, train_ratio)
-            self.loadMask(mask);
+            self.loadMask(char(mask));
             self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
             for brain_voxel = 1:length(self.mask_img)
@@ -51,7 +51,7 @@ classdef InstaClassifier < handle
         end
 
         function calcSelectionCount(self, features, labels, mask, iters, train_ratio)
-            self.loadMask(mask);
+            self.loadMask(char(mask));
             self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
             for brain_voxel = 1:length(self.mask_img)
