@@ -6,6 +6,7 @@ classdef InstaClassifier < handle
     mask_img
     mask_dims
     mask_map
+    mask_header
     labels
     weights
     ix_eff
@@ -21,14 +22,20 @@ classdef InstaClassifier < handle
             % one ROI at a time for classifier
         end
 
-        function loadFeatures(self, name)
-            self.fmri_data = [];
-        end
-
         function loadMask(self, name)
-            self.mask_img = spm_read_vols(spm_vol([self.base_dir '/ref/' name '.nii']));
+            self.mask_header = spm_vol([self.base_dir '/ref/' name '.nii']);
+            self.mask_img = spm_read_vols(self.mask_header);
             self.mask_dims = size(self.mask_img);
             self.mask_img = reshape(self.mask_img,[],1);
+        end
+
+        function saveClassifier(self, name)
+            out_header = self.mask_header;
+            out_img_all_classes = self.mask_map*self.weights(1:(size(self.weights,1)-1),:);
+            for class_type = 1:self.N_class
+                out_header.fname = [self.base_dir '/ref/' name '-class-' num2str(class_type) '.nii'];
+                spm_write_vol(out_header, out_img_all_classes(:,class_type));
+            end
         end
 
         function trainClassifier(self, features, labels, mask, train_ratio)
