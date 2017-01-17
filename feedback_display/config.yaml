@@ -1,0 +1,16 @@
+##############################
+# sim-nfb configuration file #
+##############################
+
+subject-id: demo #20151213-pilot-002
+sim-noise-std: .01 #.15
+location: lab #scanner
+fullscreen: True #False
+runs:
+    game: 7
+    localizer: 8
+    ai: 4
+    sim: 1
+enable-blink: False #True
+visible-trials: 7
+invisible-trials: 28
