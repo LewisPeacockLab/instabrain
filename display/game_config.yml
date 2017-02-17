@@ -1,0 +1,25 @@
+################################
+# feedback display config file #
+################################
+
+# server params
+server-ip: 127.0.0.1
+server-port: 27000
+
+# imaging params
+runs: 12
+trials-per-run: 15
+tr-time: 2.0 #seconds
+zscore-trs: 10
+cue-trs: 3
+wait-trs: 4
+feedback-trs: 1
+iti-trs: 3
+
+# display params
+fullscreen: False #True
+feedback-update-trs: 0.25 #<feedback-trs
+fixation-diameter: 1.5 #degrees
+min-feedback-diameter: 2 #degrees
+max-feedback-diameter: 10 #degrees
+feedback-indicator-diameter: 0.3 #degrees

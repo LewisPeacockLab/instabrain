@@ -1,0 +1,29 @@
+#################################
+# configuration file for smoker #
+#################################
+
+# directory where incoming images appears
+watch-dir: /home/rewire/rt_data
+
+# directory where rfi.nii, clf.nii exist
+ref-dir: /home/rewire/rt_data
+target-class: 1 # 1-Nclasses
+
+# directory where motion correction happens
+proc-dir: /home/rewire/rt_data
+
+# directory where files are served
+serve-dir: /home/rewire/rt_data
+
+# port where summarized brain data is served
+server-port: 27000
+
+# imaging params
+trials-per-run: 15
+tr-time: 2.0 #seconds
+zscore-trs: 10
+cue-trs: 3
+wait-trs: 4
+feedback-trs: 1
+iti-trs: 3
+moving-avg-trs: 3
