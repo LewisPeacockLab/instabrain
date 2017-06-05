@@ -3,7 +3,7 @@
 ################################
 
 # server params
-server-ip: 127.0.0.1
+server-ip: 169.254.137.201
 server-port: 27000
 
 # imaging params
@@ -16,6 +16,11 @@ wait-trs: 4
 feedback-trs: 1
 iti-trs: 3
 
+# debug imaging params
+# trials-per-run: 3
+# tr-time: 0.5
+# zscore-trs: 1
+
 # display params
 fullscreen: False #True
 feedback-update-trs: 0.25 #<feedback-trs
@@ -23,3 +28,6 @@ fixation-diameter: 1.5 #degrees
 min-feedback-diameter: 2 #degrees
 max-feedback-diameter: 10 #degrees
 feedback-indicator-diameter: 0.3 #degrees
+
+# key inputs
+input-mode: qwerty # qwerty, sensor

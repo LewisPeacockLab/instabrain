@@ -31,6 +31,7 @@ classdef InstaClassifier < handle
 
         function saveClassifier(self, name)
             out_header = self.mask_header;
+            out_header.dt = [16 0];
             out_img_all_classes = self.mask_map*self.weights(1:(size(self.weights,1)-1),:);
             for class_type = 1:self.N_class
                 out_header.fname = [self.base_dir '/ref/' name '-class-' num2str(class_type) '.nii'];

@@ -3,17 +3,8 @@
 #################################
 
 # directory where incoming images appears
-watch-dir: /home/rewire/rt_data
-
-# directory where rfi.nii, clf.nii exist
-ref-dir: /home/rewire/rt_data
-target-class: 1 # 1-Nclasses
-
-# directory where motion correction happens
-proc-dir: /home/rewire/rt_data
-
-# directory where files are served
-serve-dir: /home/rewire/rt_data
+watch-dir: /home/realtime/10GbDump
+archive-data: True
 
 # port where summarized brain data is served
 server-port: 27000

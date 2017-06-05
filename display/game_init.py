@@ -3,6 +3,11 @@ from psychopy import visual, monitors
 from psychopy import core
 import numpy as np
 import yaml
+try: 
+    from pydaq import Pydaq
+    SENSOR_ACTIVE = True
+except:
+    pass
 
 def generate_constants(game, subject_id):
     with open('game_config.yml') as f:
@@ -14,7 +19,7 @@ def generate_constants(game, subject_id):
     game.FULLSCREEN = game.CONFIG['fullscreen']
     game.RUNS = game.CONFIG['runs']
     game.TRIALS_PER_RUN = game.CONFIG['trials-per-run']
-    game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}'
+    game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}\n\nHold any key to continue...'
 
     # timing
     game.TR_TIME = game.CONFIG['tr-time']
@@ -23,6 +28,7 @@ def generate_constants(game, subject_id):
     game.WAIT_TIME = game.TR_TIME*game.CONFIG['wait-trs']
     game.FEEDBACK_TIME = game.TR_TIME*game.CONFIG['feedback-trs']
     game.ITI_TIME = game.TR_TIME*game.CONFIG['iti-trs']
+    game.SELF_PACE_START_TIME = 1.0
 
     game.WAIT_TIME_THRESHOLD = game.CUE_TIME + game.WAIT_TIME
     game.FEEDBACK_TIME_THRESHOLD = game.WAIT_TIME_THRESHOLD + game.FEEDBACK_TIME
@@ -50,16 +56,28 @@ def generate_constants(game, subject_id):
 
     # colors
     game.SCORE_COLOR = (40,110,40)
-    game.BG_COLOR = -1
+    game.BG_COLOR = -0.8
+    game.TEXT_COLOR = 0.8
     game.FIXATION_COLOR = -0.4
+
+    # key presses
+    game.input_mode = game.CONFIG['input-mode'] # 'qwerty', 'sensor'
+    game.keydown = [False,False,False,False,False]
+    game.key_codes = [u'9',
+                      u'8',
+                      u'7',
+                      u'6',
+                      u'4']
 
 def generate_variables(game, mode):
     # game logic
-    game.run_trials = False
     game.show_feedback = False
     game.show_cue = False
     game.feedback_score_history = [0]
-    game.feedback_calc_bool = False
+    game.classifier_history = []
+    game.feedback_requesting_bool = False
+    game.trial_stage = 'splash' # splash, zscore, cue, wait, feedback, iti
+    game.feedback_status = 'idle' # idle, calculated
 
     # input/output
     io=launchHubServer()
@@ -112,8 +130,8 @@ def generate_variables(game, mode):
                            +'last classifier: {last_clf}\n')
 
     # timers
-    game.zscore_clock = core.Clock()
     game.trial_clock = core.Clock()
     game.feedback_update_clock = core.Clock()
+    game.self_pace_start_clock = core.Clock()
     game.trial_count = 0
     game.run_count = -1
