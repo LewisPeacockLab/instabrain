@@ -31,3 +31,6 @@ feedback-indicator-diameter: 0.3 #degrees
 
 # key inputs
 input-mode: qwerty # qwerty, sensor
+
+# reward
+max-experiment-reward: 30 # dollars

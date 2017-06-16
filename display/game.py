@@ -8,13 +8,13 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
+parser.add_argument('-n','--sessionnum', help='Session number',default='1')
 args = parser.parse_args()
 
 class Game(object):
     def __init__(self):
-        subject_id = args.subjectid
-        gi.generate_constants(self, subject_id)
-        gi.generate_variables(self, subject_id)
+        gi.generate_constants(self, args.subjectid, args.sessionnum)
+        gi.generate_variables(self)
         # add DAQ inputs here
         # if SENSOR_ACTIVE:
         #     self.daq = Pydaq(self.ANALOG_IN_CHANS,
@@ -68,13 +68,17 @@ class Game(object):
 
     def start_run(self):
         self.feedback_score_history = [self.feedback_score_history[-1]]
+        self.run_reward_history = []
         self.trial_clock.reset() 
         self.trial_clock.add(self.ZSCORE_TIME)
         self.reset_for_next_trial()
         self.trial_count = 0
         self.run_count += 1
-        self.splash_msg.text = self.SPLASH_MSG_BASE.format(current=str(self.run_count+2),
-            total=str(game.RUNS))
+        if self.run_count < self.RUNS-1:
+            self.splash_msg.text = self.SPLASH_MSG_BASE.format(current=str(self.run_count+2),
+                total=str(self.RUNS))
+        else:
+            self.splash_msg.text = self.QUIT_MSG
         self.trial_stage = 'zscore' 
 
     def timer_based_updates(self):
@@ -91,7 +95,6 @@ class Game(object):
         else:
             self.reset_for_next_trial()
         if self.trial_count >= self.TRIALS_PER_RUN:
-            # write run data to file here
             self.reset_for_splash()
 
     def reset_for_next_trial(self):
@@ -99,12 +102,29 @@ class Game(object):
         self.trial_clock.add(self.TRIAL_TIME)
         self.feedback_status = 'idle'
 
+    def write_trial_header(self, clf_data):
+        self.TRIAL_FILE.write('run_num,')
+        for class_num in range(clf_data.size-1):
+            self.TRIAL_FILE.write('class_'+str(class_num+1)+',')
+        self.TRIAL_FILE.write('dollars_reward\n')
+
+    def write_trial_data(self, clf_data):
+        self.TRIAL_FILE.write(str(game.run_count+1)+',')
+        for class_num in range(clf_data.size-1):
+            self.TRIAL_FILE.write(str(clf_data[class_num])+',')
+        self.TRIAL_FILE.write(str(self.run_reward_history[-1]+'\n')
+        pass
+
     def reset_for_splash(self):
+        self.reward_msg.text = self.REWARD_MSG_BASE.format(
+            run_reward=sum(self.run_reward_history),
+            total_reward=self.total_reward)
         self.self_pace_start_clock.reset()
         self.self_pace_start_clock.add(self.SELF_PACE_START_TIME)
         self.trial_stage = 'splash'
 
     def get_next_feedback_value(self):
+        # real request:
         while True:
             try:
                 request_response = r.get(self.NETWORK_TARGET+str(self.trial_count)+'.txt',timeout=(0.01,0.01))
@@ -114,14 +134,19 @@ class Game(object):
             except:
                 pass
         clf_data = np.loadtxt(sio.StringIO(next_feedback))
+        ############################################
+        # for debugging:
+        # random_score = np.random.random()
+        # clf_data = np.array([random_score,1-random_score,1])
+        ############################################
         target_score = clf_data[int(clf_data[-1]-1)]
         self.feedback_score_history.append(target_score)
-        if self.classifier_history == []:
-            self.classifier_history = clf_data
-        else:
-            self.classifier_history = np.vstack([self.classifier_history,clf_data])
-        # for debugging:
-        # self.feedback_score_history.append(np.random.random())
+        self.run_reward_history.append(target_score*self.MAX_TRIAL_REWARD)
+        self.total_reward += game.run_reward_history[-1]
+        if not(game.header_written):
+            self.write_trial_header(clf_data)
+            game.header_written = True
+        self.write_trial_data(clf_data)
         self.feedback_status = 'calculated'
 
     def reset_feedback_clock(self):
@@ -173,8 +198,12 @@ class Game(object):
             1+self.self_pace_start_clock.getTime()/self.SELF_PACE_START_TIME))
         self.splash_msg.color = (game.BG_COLOR
             + (1-continue_ratio)*(game.TEXT_COLOR-game.BG_COLOR))
+        self.reward_msg.color = self.splash_msg.color
         self.splash_msg.draw()
+        self.reward_msg.draw()
         if self.self_pace_start_clock.getTime() > 0:
+            if self.run_count >= self.RUNS-1:
+                self.quit()
             self.screen.flip()
             self.fixation.draw()
             self.screen.flip()

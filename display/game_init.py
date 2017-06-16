@@ -2,24 +2,31 @@ from psychopy.iohub import launchHubServer
 from psychopy import visual, monitors
 from psychopy import core
 import numpy as np
-import yaml
+import os, yaml
 try: 
     from pydaq import Pydaq
     SENSOR_ACTIVE = True
 except:
     pass
 
-def generate_constants(game, subject_id):
+def generate_constants(game, subject_id, session_num):
     with open('game_config.yml') as f:
         game.CONFIG = yaml.load(f)
 
     # game parameters
     game.SUBJECT_ID = subject_id
+    game.SESSION_NUM = session_num
     game.SUBJECT_DIR = 'datasets/' + game.SUBJECT_ID
+    if not os.path.exists(game.SUBJECT_DIR):
+        os.mkdir(game.SUBJECT_DIR)
+    trial_file_name = game.SUBJECT_DIR+'/'+game.SUBJECT_ID+'-sesh'+str(game.SESSION_NUM)+'.txt'
+    game.TRIAL_FILE = open(trial_file_name,'w')
     game.FULLSCREEN = game.CONFIG['fullscreen']
     game.RUNS = game.CONFIG['runs']
     game.TRIALS_PER_RUN = game.CONFIG['trials-per-run']
+    game.REWARD_MSG_BASE = 'You earned {run_reward:.2f} last run,\nand {total_reward:.2f} total!'
     game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}\n\nHold any key to continue...'
+    game.QUIT_MSG = 'Done!\n\nHold any key to quit...'
 
     # timing
     game.TR_TIME = game.CONFIG['tr-time']
@@ -44,9 +51,11 @@ def generate_constants(game, subject_id):
     game.NETWORK_TARGET = 'http://'+str(game.CONFIG['server-ip'])+':'+str(game.CONFIG['server-port'])+'/'
 
     # screen dimensions 
-    game.SCREEN_DIMS = [1024, 768]
+    # game.SCREEN_DIMS = [1024, 768]
+    # game.SCREEN_DISTANCE = 136; game.SCREEN_WIDTH = 85.7 # cm
+    game.SCREEN_DIMS = [1920, 1080]
     game.SCREEN_DISTANCE = 136 # cm
-    game.SCREEN_WIDTH = 85.7 # cm
+    game.SCREEN_WIDTH = 160.7 # cm
     game.FIXATION_DIAMETER = game.CONFIG['fixation-diameter']
     game.SCORE_DIAMETER_MIN = game.CONFIG['min-feedback-diameter']
     game.SCORE_DIAMETER_MAX = game.CONFIG['max-feedback-diameter']
@@ -69,12 +78,16 @@ def generate_constants(game, subject_id):
                       u'6',
                       u'4']
 
-def generate_variables(game, mode):
+    # reward
+    game.MAX_EXPERIMENT_REWARD = game.CONFIG['max-experiment-reward']
+    game.MAX_TRIAL_REWARD = game.MAX_EXPERIMENT_REWARD/float(game.RUNS)/float(game.TRIALS_PER_RUN)
+
+def generate_variables(game):
     # game logic
     game.show_feedback = False
     game.show_cue = False
+    game.header_written = False
     game.feedback_score_history = [0]
-    game.classifier_history = []
     game.feedback_requesting_bool = False
     game.trial_stage = 'splash' # splash, zscore, cue, wait, feedback, iti
     game.feedback_status = 'idle' # idle, calculated
@@ -122,9 +135,13 @@ def generate_variables(game, mode):
         text=game.SPLASH_MSG_BASE.format(current=str(1),
                                          total=str(game.RUNS)))
 
+    game.reward_msg = visual.TextStim(game,screen,
+        text='',
+        pos=(0,-.2))
+
     game.debug_msg = visual.TextStim(game.screen,
-                                     text='',
-                                     pos=(-0.25,-0.25))
+        text='',
+        pos=(-0.25,-0.25))
 
     game.debug_msg_base = ('last volume: {last_vol}\n'
                            +'last classifier: {last_clf}\n')
@@ -135,3 +152,7 @@ def generate_variables(game, mode):
     game.self_pace_start_clock = core.Clock()
     game.trial_count = 0
     game.run_count = -1
+
+    # reward
+    game.run_reward_history = []
+    game.total_reward = 0
