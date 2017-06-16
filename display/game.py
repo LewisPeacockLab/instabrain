@@ -4,7 +4,7 @@ import numpy as np
 import requests as r
 import StringIO as sio
 import game_init as gi
-import argparse
+import argparse, time
 
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
@@ -112,8 +112,7 @@ class Game(object):
         self.TRIAL_FILE.write(str(game.run_count+1)+',')
         for class_num in range(clf_data.size-1):
             self.TRIAL_FILE.write(str(clf_data[class_num])+',')
-        self.TRIAL_FILE.write(str(self.run_reward_history[-1]+'\n')
-        pass
+        self.TRIAL_FILE.write(str(self.run_reward_history[-1])+'\n')
 
     def reset_for_splash(self):
         self.reward_msg.text = self.REWARD_MSG_BASE.format(
@@ -124,6 +123,11 @@ class Game(object):
         self.trial_stage = 'splash'
 
     def get_next_feedback_value(self):
+        ############################################
+        # for debugging:
+        # begin_request_time = time.time()
+        ############################################
+
         # real request:
         while True:
             try:
@@ -148,6 +152,10 @@ class Game(object):
             game.header_written = True
         self.write_trial_data(clf_data)
         self.feedback_status = 'calculated'
+        ############################################
+        # for debugging:
+        # print (time.time()-begin_request_time)
+        ############################################
 
     def reset_feedback_clock(self):
         self.feedback_update_clock.reset()
@@ -204,9 +212,9 @@ class Game(object):
         if self.self_pace_start_clock.getTime() > 0:
             if self.run_count >= self.RUNS-1:
                 self.quit()
-            self.screen.flip()
-            self.fixation.draw()
-            self.screen.flip()
+            for flip in range(2):
+                self.screen.flip()
+                self.fixation.draw()
             while self.trial_stage == 'splash':
                 self.check_input()
 

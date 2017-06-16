@@ -17,14 +17,14 @@ def generate_constants(game, subject_id, session_num):
     game.SUBJECT_ID = subject_id
     game.SESSION_NUM = session_num
     game.SUBJECT_DIR = 'datasets/' + game.SUBJECT_ID
-    if not os.path.exists(game.SUBJECT_DIR):
-        os.mkdir(game.SUBJECT_DIR)
+    if not os.path.exists(os.path.normpath(game.SUBJECT_DIR)):
+        os.mkdir(os.path.normpath(game.SUBJECT_DIR))
     trial_file_name = game.SUBJECT_DIR+'/'+game.SUBJECT_ID+'-sesh'+str(game.SESSION_NUM)+'.txt'
-    game.TRIAL_FILE = open(trial_file_name,'w')
+    game.TRIAL_FILE = open(os.path.normpath(trial_file_name),'w')
     game.FULLSCREEN = game.CONFIG['fullscreen']
     game.RUNS = game.CONFIG['runs']
     game.TRIALS_PER_RUN = game.CONFIG['trials-per-run']
-    game.REWARD_MSG_BASE = 'You earned {run_reward:.2f} last run,\nand {total_reward:.2f} total!'
+    game.REWARD_MSG_BASE = 'You earned ${run_reward:.2f} last run,\nand have earned ${total_reward:.2f} total.'
     game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}\n\nHold any key to continue...'
     game.QUIT_MSG = 'Done!\n\nHold any key to quit...'
 
@@ -135,9 +135,9 @@ def generate_variables(game):
         text=game.SPLASH_MSG_BASE.format(current=str(1),
                                          total=str(game.RUNS)))
 
-    game.reward_msg = visual.TextStim(game,screen,
+    game.reward_msg = visual.TextStim(game.screen,
         text='',
-        pos=(0,-.2))
+        pos=(0,2.5))
 
     game.debug_msg = visual.TextStim(game.screen,
         text='',
