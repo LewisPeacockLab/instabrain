@@ -8,7 +8,7 @@ import os, time
 class SmokerWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
         PatternMatchingEventHandler.__init__(self, 
-            patterns=['*MB*.imgdat'],
+            patterns=['*MB*.imgdat','*SB*.imgdat'],
             ignore_patterns=[],
             ignore_directories=True)
         self.pool = mp.Pool()

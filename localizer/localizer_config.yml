@@ -2,9 +2,11 @@
 # configuration file for instabrain localizer #
 ###############################################
 
-SUBJECT_DIR: /belly/seqlearn-staged
-FREESURFER_HOME: /usr/local/freesurfer
-FSL_DIR: /usr/share/fsl/5.0
-NUM_RUNS: 8
-VOLS_PER_RUN: 100
-TR: 2.7
+SUBJECT_DIR: /Users/eo5629/fmri/seqlearn/s001
+NUM_RUNS: 12
+VOLS_PER_RUN: 144
+TR: 2.0
+TRS_PER_TRIAL: 8
+MOVING_AVERAGE_TRS: 4
+TRS_TRIAL_END_OFFSET: -1
+

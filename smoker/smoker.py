@@ -3,7 +3,7 @@ import SocketServer
 from smoker_watcher import SmokerWatcher
 from watchdog.observers import Observer
 import multiprocessing as mp
-import os, yaml, time, argparse
+import os, yaml, time, argparse, subprocess
 
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
@@ -16,7 +16,9 @@ try:
     OBS_TIMEOUT = 0.01
     PORT = CONFIG['server-port']
     WATCH_DIR = CONFIG['watch-dir']
-    SERVE_DIR = os.getcwd()+'/serve'
+    SMOKER_DIR = os.getcwd()
+    SERVE_DIR = SMOKER_DIR+'/serve'
+    RECON_SCRIPT = CONFIG['recon-server-path']+'/runLocal_CPU.sh'
     CONFIG['serve-dir'] = SERVE_DIR
     CONFIG['subject-id'] = args.subjectid
 except:
@@ -44,18 +46,23 @@ def serve_async(httpd):
 
 
 if __name__ == "__main__":
+    # init and configure smoker server
     request_handler = SmokerHandler
     SocketServer.TCPServer.allow_reuse_address = True 
     SocketServer.TCPServer.timeout = 1.0 
-    SMOKER_DIR = os.getcwd()
+
+    # start smoker server
     os.chdir(SERVE_DIR)
     httpd = SocketServer.TCPServer(("", PORT),
                                    request_handler)
-
     server_process = mp.Process(target = serve_async,
                                 args = (httpd,))
     server_process.start()
 
+    # start remote recon server
+    subprocess.Popen(RECON_SCRIPT, shell=True)
+
+    # start realtime watcher
     os.chdir(SMOKER_DIR)
     event_observer = Observer(OBS_TIMEOUT)
     event_handler = SmokerWatcher(CONFIG)
@@ -63,5 +70,7 @@ if __name__ == "__main__":
                             WATCH_DIR,
                             recursive=False)
     event_observer.start()
+
+    # dummy loop for ongoing processes
     while True:
         pass

@@ -4,6 +4,7 @@
 
 # directory where incoming images appears
 watch-dir: /home/realtime/10GbDump
+recon-server-path: /home/realtime/remoteServer/ejaMBRemoteICE-R007 #/runLocal_CPU.sh
 archive-data: True
 
 # port where summarized brain data is served

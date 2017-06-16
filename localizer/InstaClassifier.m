@@ -1,7 +1,7 @@
 classdef InstaClassifier < handle
     properties
-    N_class = 4
-    base_dir = '/belly/seqlearn-staged'
+    N_class = 3
+    base_dir = '/Users/eo5629/fmri/seqlearn/s001'
     fmri_data
     mask_img
     mask_dims
@@ -12,7 +12,7 @@ classdef InstaClassifier < handle
     ix_eff
     errTable_tr
     errTable_te
-    mask_names = {'fs_BA4a_r_rfi', 'fs_BA4p_r_rfi', 'fs_BA6_r_rfi', 'fs_BA4a_l_rfi', 'fs_BA4p_l_rfi', 'fs_BA6_l_rfi'}
+    mask_names = {'maskrhBA4a_rfi', 'maskrhBA4p_rfi', 'maskrhBA6_rfi', 'masklhBA4a_rfi', 'masklhBA4p_rfi', 'masklhBA6_rfi', 'maskbiBA4a_rfi', 'maskbiBA4p_rfi', 'maskbiBA6_rfi'}
     cross_validation
     selection_count
     end
@@ -39,9 +39,11 @@ classdef InstaClassifier < handle
                 class_img = reshape(class_img, self.mask_dims);
                 spm_write_vol(out_header, class_img);
             end
+            % fslmerge -t clf.nii clf*; gunzip *.gz
         end
 
         function trainClassifier(self, features, labels, mask, train_ratio)
+            % clf.trainClassifier(loc.features,loc.labels,clf.mask_names(4),.5)
             self.loadMask(char(mask));
             self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
@@ -57,7 +59,7 @@ classdef InstaClassifier < handle
 
             [self.weights, self.ix_eff, self.errTable_tr, self.errTable_te] = muclsfy_smlr(...
                 self.fmri_data(ixtr,:), self.labels(ixtr,:), self.fmri_data(ixte,:), self.labels(ixte,:),...
-                'wdisp_mode', 'iter', 'nlearn', 300, 'mean_mode', 'none', 'scale_mode', 'none');
+                'wdisp_mode', 'iter', 'nlearn', 30, 'mean_mode', 'none', 'scale_mode', 'none');
         end
 
         function calcSelectionCount(self, features, labels, mask, iters, train_ratio)
