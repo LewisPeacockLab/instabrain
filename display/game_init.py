@@ -25,8 +25,8 @@ def generate_constants(game, subject_id, session_num):
     game.RUNS = game.CONFIG['runs']
     game.TRIALS_PER_RUN = game.CONFIG['trials-per-run']
     game.REWARD_MSG_BASE = 'You earned ${run_reward:.2f} last run,\nand have earned ${total_reward:.2f} total.'
-    game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}\n\nHold any key to continue...'
-    game.QUIT_MSG = 'Done!\n\nHold any key to quit...'
+    game.SPLASH_MSG_BASE = 'Ready for Run {current} of {total}\nHold any key to continue...'
+    game.QUIT_MSG = 'Done!\nHold any key to quit...'
 
     # timing
     game.TR_TIME = game.CONFIG['tr-time']

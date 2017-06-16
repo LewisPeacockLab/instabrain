@@ -54,6 +54,8 @@ class Game(object):
             if self.trial_stage == 'splash':
                 self.draw_splash()
             else:
+                if self.trial_stage == 'wait' and self.feedback_status == 'idle':
+                    self.get_next_feedback_value()
                 self.timer_based_updates()
                 if self.trial_stage in ('zscore','wait','iti'):
                     self.run_rest()
@@ -61,8 +63,6 @@ class Game(object):
                     self.run_cue()
                 elif self.trial_stage == 'feedback':
                     self.run_feedback()
-                if self.trial_stage == 'wait' and self.feedback_status == 'idle':
-                    self.get_next_feedback_value()
                 self.draw_trials()
             self.screen.flip()
 
