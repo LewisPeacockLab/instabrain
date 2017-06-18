@@ -5,6 +5,14 @@ from watchdog.observers import Observer
 import multiprocessing as mp
 import os, yaml, time, argparse, subprocess
 
+# pip install git+https://github.com/Pithikos/python-websocket-server
+from websocket_server import WebsocketServer
+
+
+#
+# Configuration
+#
+
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
 args = parser.parse_args()
@@ -21,8 +29,15 @@ try:
     RECON_SCRIPT = CONFIG['recon-server-path']+'/runLocal_CPU.sh'
     CONFIG['serve-dir'] = SERVE_DIR
     CONFIG['subject-id'] = args.subjectid
+    WS_SERVER_HOST = CONFIG['ws-server-host']
+    WS_SERVER_PORT = CONFIG['ws-server-port']
+    WS_SERVER_NAME = CONFIG['ws-server-name']
 except:
     print 'Error: config file incomplete/missing'
+
+#
+# SimpleHTTPServer Communication Implementation
+#
 
 class SmokerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -44,6 +59,36 @@ def serve_async(httpd):
     while True:
         httpd.handle_request()
 
+#
+# Websocket Commmunication Implementation
+#
+
+def on_new_client(client, server):
+    server.send_message_to_all(SERVER_NAME + ":HUD client connected\n")
+
+def on_client_left(client,server):
+    server.send_message_to_all(SERVER_NAME + ":HUD client left\n")
+
+def on_message_received(client,server,message):
+    server.send_message_to_all(SERVER_NAME + ":I got this:" + message)
+
+def websocket_server_start():
+
+    server = WebsocketServer(WS_SERVER_PORT, host=WS_SERVER_HOST, loglevel=logging.INFO)
+
+    # setup callbacks
+
+    server.set_fn_new_client(on_new_client)
+    server.set_fn_client_left(on_client_left)
+    server.set_fn_message_received(on_message_received)
+
+    server.run_forever()
+
+    return server
+
+#
+#  Main
+#
 
 if __name__ == "__main__":
     # init and configure smoker server
@@ -59,13 +104,16 @@ if __name__ == "__main__":
                                 args = (httpd,))
     server_process.start()
 
+    # start smoker websocket server
+    ws_server = websocket_server_start()
+
     # start remote recon server
     subprocess.Popen(RECON_SCRIPT, shell=True)
 
     # start realtime watcher
     os.chdir(SMOKER_DIR)
     event_observer = Observer(OBS_TIMEOUT)
-    event_handler = SmokerWatcher(CONFIG)
+    event_handler = SmokerWatcher(CONFIG, ws_server)
     event_observer.schedule(event_handler,
                             WATCH_DIR,
                             recursive=False)

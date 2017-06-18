@@ -6,11 +6,12 @@ import nibabel as nib
 import os, time
 
 class SmokerWatcher(PatternMatchingEventHandler):
-    def __init__(self, config):
+    def __init__(self, config , ws_server):
         PatternMatchingEventHandler.__init__(self, 
             patterns=['*MB*.imgdat','*SB*.imgdat'],
             ignore_patterns=[],
             ignore_directories=True)
+        self.ws_server = ws_server
         self.pool = mp.Pool()
         self.trials = config['trials-per-run']
         self.zscore_trs = config['zscore-trs']
@@ -74,12 +75,12 @@ class SmokerWatcher(PatternMatchingEventHandler):
             self.pool.apply_async(func = process_volume,
                 args = (self.raw_img_array[:,:,:,rep],self.roi_voxels,
                     rep,self.rfi_file,self.proc_dir,self.ref_header,self.ref_affine),
-                callback = self.save_processed_roi)
+                callback = self.save_processed_roi_to_disk)
 
     # callback = self.on_processing_finished
     # runs save_processed_roi and checks for self.reset_for_next_run()
 
-    def save_processed_roi(self, (roi_data,rep)):
+    def save_processed_roi_to_disk(self, (roi_data,rep)):
         self.raw_roi_array[:,rep] = roi_data
         if rep == (self.zscore_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
@@ -93,6 +94,27 @@ class SmokerWatcher(PatternMatchingEventHandler):
             out_file = self.serve_dir+'/'+str(self.trial_count)+'.txt'
             with open(out_file,'w') as f:
                 f.write(str(out_data)[1:-1])
+        if rep == (self.run_trs-1):
+            self.reset_for_next_run()
+
+    def save_processed_roi(self, (roi_data,rep)):
+        self.raw_roi_array[:,rep] = roi_data
+        if rep == (self.zscore_trs-1):
+            self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
+        if rep in self.feedback_calc_trs:
+            self.trial_count += 1
+            detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+            zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+            clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
+            clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
+            out_data = np.append(clf_out_softmax, self.target_class)
+
+            # send data to listening clients:
+            outbound_data = {}
+            outbound_data['data_id'] = self.serve_dir+'/'+str(self.trial_count)+'.txt'
+            outbound_data['data'] = out_data
+            ws_server.send_message_to_all(outbound_data)
+
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
 

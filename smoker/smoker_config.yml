@@ -19,3 +19,8 @@ wait-trs: 4
 feedback-trs: 1
 iti-trs: 3
 moving-avg-trs: 3
+
+# websocket server params
+ws-server-host: 0.0.0.0
+ws-server-port: 8080
+ws-server-name: smoker
