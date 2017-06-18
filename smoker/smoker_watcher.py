@@ -8,10 +8,13 @@ import os, time
 class SmokerWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
         PatternMatchingEventHandler.__init__(self, 
-            patterns=['*MB*.imgdat','*SB*.imgdat'],
+            patterns=['*SB*.imgdat'],
             ignore_patterns=[],
             ignore_directories=True)
+        # multiprocessing workers
         self.pool = mp.Pool()
+
+        # timings
         self.trials = config['trials-per-run']
         self.zscore_trs = config['zscore-trs']
         self.cue_trs = config['cue-trs']
@@ -19,11 +22,14 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.feedback_trs = config['feedback-trs']
         self.iti_trs = config['iti-trs']
         self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
+        self.run_trs = self.zscore_trs+self.trials*self.trial_trs
+        self.run_count = 0
         self.moving_avg_trs = config['moving-avg-trs']
         self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
         self.feedback_calc_trs = (self.zscore_trs+self.trs_to_score_calc
                                   +np.arange(self.trials)*self.trial_trs-1)
 
+        # files and directories
         self.subject_id = config['subject-id']
         self.ref_dir = os.getcwd()+'/ref/'+self.subject_id
         self.rfi_file = self.ref_dir+'/rfi.nii'
@@ -34,9 +40,10 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
         self.proc_dir = os.getcwd()+'/proc'
         self.serve_dir = config['serve-dir']
+        self.watch_dir = config['watch-dir']
+
+        # logic and initialization
         self.load_clf(self.clf_file)
-        self.run_trs = self.zscore_trs+self.trials*self.trial_trs
-        self.run_count = 0
         self.archive_bool = config['archive-data']
         self.reset_img_arrays()
 
@@ -63,11 +70,12 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.zscore_calc = False
         self.voxel_sigmas = np.zeros(self.num_roi_voxels)
 
-    def on_created(self, event):
-        img_file = event.src_path.rsplit('/')[-1]
-        rep = int(img_file.split('R')[1].split('-')[0])-1
-        slc = int(img_file.split('S')[1].split('.')[0])-1
-        with open(event.src_path) as f:
+    def on_moved(self, event):
+        # is triggered when full .imgdat file received
+        img_file = event.src_path.rsplit('/')[-1].rsplit('.tmp')[0]
+        rep = int(img_file.split('-R')[1].split('-')[0])-1
+        slc = int(img_file.split('-S')[1].split('.')[0])-1
+        with open(event.src_path.rsplit('.tmp')[0]) as f:
             self.raw_img_array[:,:,slc,rep] = np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims)
         self.img_status_array[rep] += 1
         if self.img_status_array[rep] == self.num_slices:
@@ -75,9 +83,6 @@ class SmokerWatcher(PatternMatchingEventHandler):
                 args = (self.raw_img_array[:,:,:,rep],self.roi_voxels,
                     rep,self.rfi_file,self.proc_dir,self.ref_header,self.ref_affine),
                 callback = self.save_processed_roi)
-
-    # callback = self.on_processing_finished
-    # runs save_processed_roi and checks for self.reset_for_next_run()
 
     def save_processed_roi(self, (roi_data,rep)):
         self.raw_roi_array[:,rep] = roi_data
@@ -90,7 +95,25 @@ class SmokerWatcher(PatternMatchingEventHandler):
             clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
             clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
             out_data = np.append(clf_out_softmax, self.target_class)
-            out_file = self.serve_dir+'/'+str(self.trial_count)+'.txt'
+            out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
+            # do post here or put data on websocket
+            with open(out_file,'w') as f:
+                f.write(str(out_data)[1:-1])
+        if rep == (self.run_trs-1):
+            self.reset_for_next_run()
+
+    def save_processed_roi_to_disk(self, (roi_data,rep)):
+        self.raw_roi_array[:,rep] = roi_data
+        if rep == (self.zscore_trs-1):
+            self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
+        if rep in self.feedback_calc_trs:
+            self.trial_count += 1
+            detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+            zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+            clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
+            clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
+            out_data = np.append(clf_out_softmax, self.target_class)
+            out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
             with open(out_file,'w') as f:
                 f.write(str(out_data)[1:-1])
         if rep == (self.run_trs-1):

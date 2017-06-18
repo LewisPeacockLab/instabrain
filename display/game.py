@@ -129,6 +129,7 @@ class Game(object):
         ############################################
 
         # real request:
+        # instead, receive data over websocket here
         while True:
             try:
                 request_response = r.get(self.NETWORK_TARGET+str(self.trial_count)+'.txt',timeout=(0.01,0.01))
@@ -137,6 +138,7 @@ class Game(object):
                     break
             except:
                 pass
+        # maybe set all below as a callback?
         clf_data = np.loadtxt(sio.StringIO(next_feedback))
         ############################################
         # for debugging:

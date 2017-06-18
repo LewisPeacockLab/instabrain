@@ -5,6 +5,7 @@
 # directory where incoming images appears
 watch-dir: /home/realtime/10GbDump
 recon-server-path: /home/realtime/remoteServer/ejaMBRemoteICE-R007
+recon-script: runLocal_CPU_copy.sh
 archive-data: True
 
 # port where summarized brain data is served
@@ -13,7 +14,7 @@ server-port: 27000
 # imaging params
 trials-per-run: 15
 tr-time: 2.0 #seconds
-zscore-trs: 10
+zscore-trs: 2 #10
 cue-trs: 3
 wait-trs: 4
 feedback-trs: 1

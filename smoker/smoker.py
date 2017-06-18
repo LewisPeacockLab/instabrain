@@ -18,7 +18,8 @@ try:
     WATCH_DIR = CONFIG['watch-dir']
     SMOKER_DIR = os.getcwd()
     SERVE_DIR = SMOKER_DIR+'/serve'
-    RECON_SCRIPT = CONFIG['recon-server-path']+'/runLocal_CPU.sh'
+    RECON_DIR = CONFIG['recon-server-path']
+    RECON_SCRIPT = RECON_DIR+'/'+CONFIG['recon-script']
     CONFIG['serve-dir'] = SERVE_DIR
     CONFIG['subject-id'] = args.subjectid
 except:
@@ -60,6 +61,7 @@ if __name__ == "__main__":
     server_process.start()
 
     # start remote recon server
+    os.chdir(WATCH_DIR)
     subprocess.Popen(RECON_SCRIPT, shell=True)
 
     # start realtime watcher
