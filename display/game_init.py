@@ -13,6 +13,11 @@ def generate_constants(game, subject_id, session_num):
     with open('game_config.yml') as f:
         game.CONFIG = yaml.load(f)
 
+    # websocket paramters
+    game.WS_SERVER_HOST = CONFIG['ws-server-host']
+    game.WS_SERVER_PORT = CONFIG['ws-server-port']
+    game.WS_CLIENT_NAME = CONFIG['ws-client-name']
+
     # game parameters
     game.SUBJECT_ID = subject_id
     game.SESSION_NUM = session_num

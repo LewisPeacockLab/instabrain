@@ -6,6 +6,11 @@
 server-ip: 169.254.137.201
 server-port: 27000
 
+# websocket client params
+ws-server-host: 0.0.0.0
+ws-server-port: 8080
+ws-client-name: brainHUD
+
 # imaging params
 runs: 12
 trials-per-run: 15

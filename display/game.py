@@ -5,6 +5,9 @@ import requests as r
 import StringIO as sio
 import game_init as gi
 import argparse, time
+import thread
+import websocket
+
 
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
@@ -24,6 +27,51 @@ class Game(object):
         #                      self.LP_FILT_ORDER,
         #                      self.FORCE_PARAMS)
         #     self.daq.set_volts_zero_init()
+
+    #
+    #  Websocket Commmunication Implementation
+    #
+
+    def start_connection(self):
+        # setup connection
+        ws = websocket.WebSocketApp(SERVER_NAME,
+                                    on_message=self.on_message,
+                                    on_error=self.on_error,
+                                    on_close=self.on_close)
+        ws.on_open = on_open
+        ws.run_forever(sslopt={"check_hostname": False})
+        websocket.enableTrace(True)
+        return ws
+
+
+    def on_message(self,ws,message):
+
+        #
+        #  This is where we start when data comes in
+        #
+
+        if isinstance(message, dict):
+            self.process_feedback_value(message)
+        elif isinstance(x, basestring):
+            print CLIENT_NAME + ":" + message
+
+    def on_error(self,ws, error):
+        print error
+
+    def on_close(self,ws):
+        print CLIENT_NAME + ": closed"
+
+    def on_open(self,ws):
+        def run(*args):
+            print CLIENT_NAME + ": connected"
+            print CLIENT_NAME + ": start messsage sent"
+            ws.send("start")
+
+        thread.start_new_thread(run, ())
+
+    #
+    # Physical Input
+    #
 
     def check_input(self):
         for event in self.keyboard.getEvents():
@@ -48,6 +96,10 @@ class Game(object):
                     elif event.key == self.key_codes[4]: self.keydown[4] = False
         # if run_mode != 'qwerty' then check force from keyboard (...later)
 
+    #
+    # Main run loop
+    #
+
     def run(self):
         while True:
             self.check_input()
@@ -55,8 +107,8 @@ class Game(object):
                 self.draw_splash()
             else:
                 if self.trial_stage == 'wait' and self.feedback_status == 'idle':
-                    self.get_next_feedback_value()
-                self.timer_based_updates()
+                    #    wait, we are in an idle state and need new data
+                    self.timer_based_updates()
                 if self.trial_stage in ('zscore','wait','iti'):
                     self.run_rest()
                 elif self.trial_stage == 'cue':
@@ -67,6 +119,11 @@ class Game(object):
             self.screen.flip()
 
     def start_run(self):
+        #
+        # connect to server
+        #
+        self.ws_server = self.start_connection()
+
         self.feedback_score_history = [self.feedback_score_history[-1]]
         self.run_reward_history = []
         self.trial_clock.reset() 
@@ -122,21 +179,18 @@ class Game(object):
         self.self_pace_start_clock.add(self.SELF_PACE_START_TIME)
         self.trial_stage = 'splash'
 
-    def get_next_feedback_value(self):
+    def process_feedback_value(self,feedbackvalue):
         ############################################
         # for debugging:
         # begin_request_time = time.time()
         ############################################
 
-        # real request:
-        while True:
-            try:
-                request_response = r.get(self.NETWORK_TARGET+str(self.trial_count)+'.txt',timeout=(0.01,0.01))
-                if request_response.status_code == 200:
-                    next_feedback = request_response.text
-                    break
-            except:
-                pass
+
+        # note the object should look something like this from smoker:
+        # outbound_data['data_id'] = self.serve_dir + '/' + str(self.trial_count) + '.txt'
+        # outbound_data['data'] = out_data
+        next_feedback = feedbackvalue['data']
+
         clf_data = np.loadtxt(sio.StringIO(next_feedback))
         ############################################
         # for debugging:
@@ -219,6 +273,8 @@ class Game(object):
                 self.check_input()
 
     def quit(self):
+        # close our connection to smoker
+        self.ws_server.close()
         core.quit()
 
 if __name__ == "__main__":
