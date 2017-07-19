@@ -1,2 +1,9 @@
 mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/rh.BA6.label --temp rfi.nii --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi rh --o fs_BA6_r_rfi.nii
 mri_label2vol --subject seqlearn-003 --label $SUBJECTS_DIR/seqlearn-003/label/lh.BA4p.label --temp rfi.nii --reg test_new_reg.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o fs_BA4p_l_rfi.nii
+
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/lh.BA6_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o masklhBA6_rfi.nii
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/rh.BA6_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi rh --o maskrhBA6_rfi.nii
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/lh.BA4a_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o masklhBA4a_rfi.nii
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/rh.BA4a_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi rh --o maskrhBA4a_rfi.nii
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/lh.BA4p_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi lh --o masklhBA4p_rfi.nii
+mri_label2vol --subject hs001fs --label $SUBJECTS_DIR/hs001fs/label/rh.BA4p_exvivo.label --temp rfi.nii --reg rai2rfi.dat --proj frac 0 1 .1 --fillthresh .3 --hemi rh --o maskrhBA4p_rfi.nii
