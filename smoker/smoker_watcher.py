@@ -84,8 +84,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
                     rep,self.rfi_file,self.proc_dir,self.ref_header,self.ref_affine),
                 callback = self.save_processed_roi)
 
-    def save_processed_roi(self, xxx_todo_changeme):
-        (roi_data,rep) = xxx_todo_changeme
+    def save_processed_roi(self, roi_and_rep_data):
+        (roi_data,rep) = roi_and_rep_data 
         self.raw_roi_array[:,rep] = roi_data
         if rep == (self.zscore_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
@@ -103,8 +103,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
 
-    def save_processed_roi_to_disk(self, xxx_todo_changeme1):
-        (roi_data,rep) = xxx_todo_changeme1
+    def save_processed_roi_to_disk(self, roi_and_rep_data):
+        (roi_data,rep) = roi_and_rep_data
         self.raw_roi_array[:,rep] = roi_data
         if rep == (self.zscore_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
