@@ -1,0 +1,15 @@
+# System packages
+watchdog
+
+# File processing
+PyYAML
+
+# Scientific packages
+numpy
+scipy
+nibabel
+# psychopy
+PyDAQmx
+
+# Display packages
+pygame
