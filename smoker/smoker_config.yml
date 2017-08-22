@@ -14,9 +14,9 @@ server-port: 27000
 # imaging params
 trials-per-run: 15
 tr-time: 2.0 #seconds
-zscore-trs: 2 #10
+zscore-trs: 10
 cue-trs: 3
 wait-trs: 4
 feedback-trs: 1
-iti-trs: 3
+iti-trs: 2
 moving-avg-trs: 3

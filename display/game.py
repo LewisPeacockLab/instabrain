@@ -135,9 +135,13 @@ class Game(object):
                 request_response = r.get(self.NETWORK_TARGET+str(self.trial_count)+'.txt',timeout=(0.01,0.01))
                 if request_response.status_code == 200:
                     next_feedback = request_response.text
-                    break
+                    clf_data = np.loadtxt(sio.StringIO(next_feedback))
+                    if clf_data.size < 3:
+                        pass
+                    else:
+                        break
             except:
-                pass
+                pass 
         # maybe set all below as a callback?
         clf_data = np.loadtxt(sio.StringIO(next_feedback))
         ############################################

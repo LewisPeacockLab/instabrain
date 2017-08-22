@@ -125,8 +125,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
             if self.archive_bool:
                 run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
                 os.mkdir(run_dir)
-                os.system('mv '+target_dir+'/ '+run_dir+' 2> /dev/null')
-            os.system('rm '+target_dir+'/* 2> /dev/null')
+                os.system('mv '+target_dir+'/*.* '+run_dir+' 2> /dev/null')
+            os.system('rm '+target_dir+'/*.* 2> /dev/null')
         self.reset_img_arrays()
 
 def process_volume(raw_img, roi_voxels, rep, rfi_file, proc_dir, ref_header, ref_affine):

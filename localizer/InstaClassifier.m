@@ -1,7 +1,7 @@
 classdef InstaClassifier < handle
     properties
     N_class = 3
-    base_dir = '/Users/eo5629/fmri/seqlearn/s001'
+    base_dir = '/Users/eo5629/fmri/seqlearn/s002'
     fmri_data
     mask_img
     mask_dims
@@ -43,7 +43,7 @@ classdef InstaClassifier < handle
         end
 
         function trainClassifier(self, features, labels, mask, train_ratio)
-            % clf.trainClassifier(loc.features,loc.labels,clf.mask_names(4),.5)
+            % clf.trainClassifier(loc.features,loc.labels,clf.mask_names(9),.66)
             self.loadMask(char(mask));
             self.mask_map = zeros(length(self.mask_img),sum(self.mask_img>0));
             roi_voxel = 1;
@@ -59,7 +59,7 @@ classdef InstaClassifier < handle
 
             [self.weights, self.ix_eff, self.errTable_tr, self.errTable_te] = muclsfy_smlr(...
                 self.fmri_data(ixtr,:), self.labels(ixtr,:), self.fmri_data(ixte,:), self.labels(ixte,:),...
-                'wdisp_mode', 'iter', 'nlearn', 30, 'mean_mode', 'none', 'scale_mode', 'none');
+                'wdisp_mode', 'iter', 'nlearn', 300, 'nstep', 100, 'mean_mode', 'none', 'scale_mode', 'none');
         end
 
         function calcSelectionCount(self, features, labels, mask, iters, train_ratio)

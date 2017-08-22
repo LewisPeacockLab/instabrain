@@ -1,0 +1,10 @@
+#########################################
+# config for insta analysis replication #
+#########################################
+
+subject-id: s001
+subjs-dir: /Users/eo5629/fmri/seqlearn
+nfb-subdir: /bold-nfb/sesh-001/dump
+num-runs: 4
+zscore-trs: 10
+trs-per-run: 175

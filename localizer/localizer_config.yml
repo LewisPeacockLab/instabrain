@@ -2,7 +2,7 @@
 # configuration file for instabrain localizer #
 ###############################################
 
-SUBJECT_DIR: /Users/eo5629/fmri/seqlearn/s001
+SUBJECT_DIR: /Users/eo5629/fmri/seqlearn
 NUM_RUNS: 12
 VOLS_PER_RUN: 144
 TR: 2.0
