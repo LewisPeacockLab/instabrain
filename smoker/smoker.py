@@ -1,5 +1,5 @@
-import SimpleHTTPServer
-import SocketServer
+import http.server
+import socketserver
 from smoker_watcher import SmokerWatcher
 from watchdog.observers import Observer
 import multiprocessing as mp
@@ -23,9 +23,9 @@ try:
     CONFIG['serve-dir'] = SERVE_DIR
     CONFIG['subject-id'] = args.subjectid
 except:
-    print 'Error: config file incomplete/missing'
+    print('Error: config file incomplete/missing')
 
-class SmokerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class SmokerHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         return # silences log messages
 
@@ -49,12 +49,12 @@ def serve_async(httpd):
 if __name__ == "__main__":
     # init and configure smoker server
     request_handler = SmokerHandler
-    SocketServer.TCPServer.allow_reuse_address = True 
-    SocketServer.TCPServer.timeout = 1.0 
+    socketserver.TCPServer.allow_reuse_address = True 
+    socketserver.TCPServer.timeout = 1.0 
 
     # start smoker server
     os.chdir(SERVE_DIR)
-    httpd = SocketServer.TCPServer(("", PORT),
+    httpd = socketserver.TCPServer(("", PORT),
                                    request_handler)
     server_process = mp.Process(target = serve_async,
                                 args = (httpd,))
