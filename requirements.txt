@@ -9,7 +9,6 @@ numpy
 scipy
 nibabel
 # psychopy
-PyDAQmx
 
 # Display packages
 pygame
