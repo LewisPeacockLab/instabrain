@@ -12,7 +12,7 @@ recon-script: runLocal_CPU_copy.sh
 archive-data: True
 
 # networking
-post-url: 127.0.0.1:5000/post_url
+post-url: http://127.0.0.1:5000/rt_data/
 
 # imaging params
 trials-per-run: 15
