@@ -15,7 +15,10 @@ with open('smoker_config.yml') as f:
 try:
     OBS_TIMEOUT = 0.01
     PORT = CONFIG['server-port']
-    WATCH_DIR = CONFIG['watch-dir']
+    if CONFIG['debug-bool']:
+        WATCH_DIR = '../data/dump'
+    else:
+        WATCH_DIR = CONFIG['watch-dir']
     SMOKER_DIR = os.getcwd()
     SERVE_DIR = SMOKER_DIR+'/serve'
     RECON_DIR = CONFIG['recon-server-path']
@@ -61,8 +64,9 @@ if __name__ == "__main__":
     server_process.start()
 
     # start remote recon server
-    os.chdir(WATCH_DIR)
-    subprocess.Popen(RECON_SCRIPT, shell=True)
+    if not(CONFIG['debug-bool']):
+        os.chdir(WATCH_DIR)
+        subprocess.Popen(RECON_SCRIPT, shell=True)
 
     # start realtime watcher
     os.chdir(SMOKER_DIR)

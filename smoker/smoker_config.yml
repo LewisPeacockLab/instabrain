@@ -2,6 +2,9 @@
 # configuration file for smoker #
 #################################
 
+# debugging
+debug-bool: True
+
 # directory where incoming images appears
 watch-dir: /home/realtime/10GbDump
 recon-server-path: /home/realtime/remoteServer/ejaMBRemoteICE-R007
