@@ -1,13 +1,14 @@
 from watchdog.events import PatternMatchingEventHandler
-# from watchdog.observers import Observer
+from watchdog.observers import Observer
 import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
 import os, time
+import requests as r
 
 class SmokerWatcher(PatternMatchingEventHandler):
-    def __init__(self, config, feedback_values):
+    def __init__(self, config):
         PatternMatchingEventHandler.__init__(self, 
             patterns=['*SB*.imgdat.tmp'],
             ignore_patterns=[],
@@ -40,7 +41,7 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.clf_file = self.ref_dir+'/clf.nii'
         self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
         self.proc_dir = os.getcwd()+'/proc'
-        self.serve_dir = config['serve-dir']
+        # self.serve_dir = config['serve-dir']
         self.watch_dir = config['watch-dir']
 
         # logic and initialization
@@ -48,8 +49,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.archive_bool = config['archive-data']
         self.reset_img_arrays()
 
-        # shared (multiprocessing) variables
-        self.feedback_values = feedback_values
+        # networking
+        self.post_url = config['post-url']
 
     def load_clf(self, filename):
         self.clf_img = nib.load(filename).get_data()
@@ -100,12 +101,15 @@ class SmokerWatcher(PatternMatchingEventHandler):
             clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
             clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
             out_data = np.append(clf_out_softmax, self.target_class)
-            out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
-            # put data into multiprocessing array
-            with open(out_file,'w') as f:
-                f.write(str(out_data)[1:-1])
+            self.send_clf_outputs(out_data)
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
+
+    def send_clf_outputs(self, out_data):
+        payload = {"clf_outs": out_data[:-1],
+            "target_class": out_data[-1],
+            "trial_num": self.trial_count}
+        r.post(self.post_url, json=payload)
 
     # legacy code to write classifier outputs to disk
     def save_processed_roi_to_disk(self, roi_and_rep_data):
@@ -120,7 +124,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
             clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
             clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
             out_data = np.append(clf_out_softmax, self.target_class)
-            out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
+            # out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
+            out_file = '/'+str(self.trial_count-1)+'.txt'
             with open(out_file,'w') as f:
                 f.write(str(out_data)[1:-1])
         if rep == (self.run_trs-1):
@@ -128,7 +133,8 @@ class SmokerWatcher(PatternMatchingEventHandler):
 
     def reset_for_next_run(self):
         self.run_count += 1
-        for target_dir in [self.proc_dir, self.serve_dir, self.watch_dir]:
+        # for target_dir in [self.proc_dir, self.serve_dir, self.watch_dir]:
+        for target_dir in [self.proc_dir, self.watch_dir]:
             if self.archive_bool:
                 run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
                 os.mkdir(run_dir)
@@ -149,3 +155,12 @@ def map_voxels_to_roi(img, roi_voxels):
     for voxel in range(roi_voxels.shape[0]):
         out_roi[voxel] = img[roi_voxels[voxel,0],roi_voxels[voxel,1],roi_voxels[voxel,2]]
     return out_roi
+
+def start_watcher(CONFIG):
+    OBS_TIMEOUT = 0.01
+    event_observer = Observer(OBS_TIMEOUT)
+    event_handler = SmokerWatcher(CONFIG)
+    event_observer.schedule(event_handler,
+                            CONFIG['watch-dir'],
+                            recursive=False)
+    event_observer.start()

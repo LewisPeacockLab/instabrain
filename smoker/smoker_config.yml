@@ -11,8 +11,8 @@ recon-server-path: /home/realtime/remoteServer/ejaMBRemoteICE-R007
 recon-script: runLocal_CPU_copy.sh
 archive-data: True
 
-# port where summarized brain data is served
-server-port: 27000
+# networking
+post-url: 127.0.0.1:5000/post_url
 
 # imaging params
 trials-per-run: 15
