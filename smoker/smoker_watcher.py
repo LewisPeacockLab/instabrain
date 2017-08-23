@@ -71,7 +71,6 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.voxel_sigmas = np.zeros(self.num_roi_voxels)
 
     def on_moved(self, event):
-        print(event.src_path)
         # is triggered when full .imgdat file received
         img_file = event.src_path.rsplit('/')[-1].rsplit('.tmp')[0]
         rep = int(img_file.split('-R')[1].split('-')[0])-1
