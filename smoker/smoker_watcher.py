@@ -1,4 +1,5 @@
 from watchdog.events import PatternMatchingEventHandler
+# from watchdog.observers import Observer
 import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
@@ -6,7 +7,7 @@ import nibabel as nib
 import os, time
 
 class SmokerWatcher(PatternMatchingEventHandler):
-    def __init__(self, config):
+    def __init__(self, config, feedback_values):
         PatternMatchingEventHandler.__init__(self, 
             patterns=['*SB*.imgdat.tmp'],
             ignore_patterns=[],
@@ -46,6 +47,9 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.load_clf(self.clf_file)
         self.archive_bool = config['archive-data']
         self.reset_img_arrays()
+
+        # shared (multiprocessing) variables
+        self.feedback_values = feedback_values
 
     def load_clf(self, filename):
         self.clf_img = nib.load(filename).get_data()
@@ -97,12 +101,13 @@ class SmokerWatcher(PatternMatchingEventHandler):
             clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
             out_data = np.append(clf_out_softmax, self.target_class)
             out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
-            # do post here or put data on websocket
+            # put data into multiprocessing array
             with open(out_file,'w') as f:
                 f.write(str(out_data)[1:-1])
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
 
+    # legacy code to write classifier outputs to disk
     def save_processed_roi_to_disk(self, roi_and_rep_data):
         (roi_data,rep) = roi_and_rep_data
         self.raw_roi_array[:,rep] = roi_data
