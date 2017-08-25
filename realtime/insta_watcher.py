@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
-import os, time
+import os, yaml, time, subprocess
 import requests as r
 
 class SmokerWatcher(PatternMatchingEventHandler):
@@ -156,7 +156,8 @@ def map_voxels_to_roi(img, roi_voxels):
         out_roi[voxel] = img[roi_voxels[voxel,0],roi_voxels[voxel,1],roi_voxels[voxel,2]]
     return out_roi
 
-def start_watcher(CONFIG):
+def start_watcher(CONFIG, subject_id):
+    CONFIG['subject-id'] = subject_id
     OBS_TIMEOUT = 0.01
     event_observer = Observer(OBS_TIMEOUT)
     event_handler = SmokerWatcher(CONFIG)
@@ -164,3 +165,32 @@ def start_watcher(CONFIG):
                             CONFIG['watch-dir'],
                             recursive=False)
     event_observer.start()
+
+def start_remote_recon(CONFIG):
+    RECON_SCRIPT = CONFIG['recon-script']
+    os.chdir(CONFIG['watch-dir'])
+    subprocess.Popen(RECON_SCRIPT, shell=True)
+
+if __name__ == "__main__":
+    # load subject ID from args
+    import argparse
+    parser = argparse.ArgumentParser(description='Function arguments')
+    parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
+    args = parser.parse_args()
+
+    # load config
+    with open('insta_config.yml') as f:
+        CONFIG = yaml.load(f)
+
+    # start remote recon server
+    if not(CONFIG['debug-bool']):
+        start_remote_recon(CONFIG)
+
+    # start realtime watcher
+    if CONFIG['debug-bool']:
+        CONFIG['watch-dir'] = '../data/dump'
+    start_watcher(CONFIG, args.subjectid)
+
+    # dummy loop for ongoing processes
+    while True:
+        pass
