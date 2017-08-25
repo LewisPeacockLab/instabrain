@@ -41,7 +41,6 @@ class SmokerWatcher(PatternMatchingEventHandler):
         self.clf_file = self.ref_dir+'/clf.nii'
         self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
         self.proc_dir = os.getcwd()+'/proc'
-        # self.serve_dir = config['serve-dir']
         self.watch_dir = config['watch-dir']
 
         # logic and initialization
@@ -109,31 +108,12 @@ class SmokerWatcher(PatternMatchingEventHandler):
         payload = {"clf_outs": out_data[:-1],
             "target_class": out_data[-1],
             "trial_num": self.trial_count}
-        r.post(self.post_url, json=payload)
-
-    # legacy code to write classifier outputs to disk
-    def save_processed_roi_to_disk(self, roi_and_rep_data):
-        (roi_data,rep) = roi_and_rep_data
-        self.raw_roi_array[:,rep] = roi_data
-        if rep == (self.zscore_trs-1):
-            self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
-        if rep in self.feedback_calc_trs:
-            self.trial_count += 1
-            detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
-            zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
-            clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
-            clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
-            out_data = np.append(clf_out_softmax, self.target_class)
-            # out_file = self.serve_dir+'/'+str(self.trial_count-1)+'.txt'
-            out_file = '/'+str(self.trial_count-1)+'.txt'
-            with open(out_file,'w') as f:
-                f.write(str(out_data)[1:-1])
-        if rep == (self.run_trs-1):
-            self.reset_for_next_run()
+        post_status = 404
+        while post_status != 200:
+            post_status = r.post(self.post_url, json=payload)
 
     def reset_for_next_run(self):
         self.run_count += 1
-        # for target_dir in [self.proc_dir, self.serve_dir, self.watch_dir]:
         for target_dir in [self.proc_dir, self.watch_dir]:
             if self.archive_bool:
                 run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
@@ -142,6 +122,7 @@ class SmokerWatcher(PatternMatchingEventHandler):
             os.system('rm '+target_dir+'/*.* 2> /dev/null')
         self.reset_img_arrays()
 
+# standalone functions
 def process_volume(raw_img, roi_voxels, rep, rfi_file, proc_dir, ref_header, ref_affine):
     temp_file = proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_file = proc_dir + '/img_mc_' + str(rep+1).zfill(3) + '.nii.gz'
