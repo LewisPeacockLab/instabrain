@@ -11,7 +11,7 @@ recon-script: /home/realtime/remoteServer/ejaMBRemoteICE-R007/runLocal_CPU_copy.
 archive-data: True
 
 # networking
-post-url: http://127.0.0.1:5000/rt_data/
+post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
 
 # imaging params
 trials-per-run: 15

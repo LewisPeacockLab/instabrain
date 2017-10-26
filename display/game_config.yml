@@ -3,8 +3,7 @@
 ################################
 
 # server params
-server-ip: 169.254.137.201
-server-port: 27000
+shutdown-url: 'http://127.0.0.1:5000/shutdown'
 
 # imaging params
 runs: 12
@@ -16,10 +15,8 @@ wait-trs: 3.5 #4
 feedback-trs: 1
 iti-trs: 2.5 #3
 
-# debug imaging params
-# trials-per-run: 3
-# tr-time: 0.5
-# zscore-trs: 1
+# classifier params
+num-classes: 5
 
 # display params
 fullscreen: False #True
@@ -28,9 +25,6 @@ fixation-diameter: 1.5 #degrees
 min-feedback-diameter: 2 #degrees
 max-feedback-diameter: 10 #degrees
 feedback-indicator-diameter: 0.3 #degrees
-
-# key inputs
-input-mode: qwerty # qwerty, sensor
 
 # reward
 max-experiment-reward: 30 # dollars

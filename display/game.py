@@ -1,10 +1,9 @@
 from psychopy.iohub import EventConstants
 from psychopy import core
 import numpy as np
-import requests as r
-import StringIO as sio
 import game_init as gi
 import argparse, time
+import requests as r
 
 parser = argparse.ArgumentParser(description='Function arguments')
 parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
@@ -15,15 +14,6 @@ class Game(object):
     def __init__(self):
         gi.generate_constants(self, args.subjectid, args.sessionnum)
         gi.generate_variables(self)
-        # add DAQ inputs here
-        # if SENSOR_ACTIVE:
-        #     self.daq = Pydaq(self.ANALOG_IN_CHANS,
-        #                      '',
-        #                      self.FRAME_RATE,
-        #                      self.LP_FILT_FREQ,
-        #                      self.LP_FILT_ORDER,
-        #                      self.FORCE_PARAMS)
-        #     self.daq.set_volts_zero_init()
 
     def check_input(self):
         for event in self.keyboard.getEvents():
@@ -33,20 +23,17 @@ class Game(object):
                         self.start_run()
                 elif event.key == u'escape':
                     self.quit()
-                if self.input_mode == 'qwerty':
-                    if event.key == self.key_codes[0]: self.keydown[0] = True
-                    elif event.key == self.key_codes[1]: self.keydown[1] = True
-                    elif event.key == self.key_codes[2]: self.keydown[2] = True
-                    elif event.key == self.key_codes[3]: self.keydown[3] = True
-                    elif event.key == self.key_codes[4]: self.keydown[4] = True
+                elif event.key == self.key_codes[0]: self.keydown[0] = True
+                elif event.key == self.key_codes[1]: self.keydown[1] = True
+                elif event.key == self.key_codes[2]: self.keydown[2] = True
+                elif event.key == self.key_codes[3]: self.keydown[3] = True
+                elif event.key == self.key_codes[4]: self.keydown[4] = True
             elif event.type == EventConstants.KEYBOARD_RELEASE:
-                if self.input_mode == 'qwerty':
-                    if event.key == self.key_codes[0]: self.keydown[0] = False
-                    elif event.key == self.key_codes[1]: self.keydown[1] = False
-                    elif event.key == self.key_codes[2]: self.keydown[2] = False
-                    elif event.key == self.key_codes[3]: self.keydown[3] = False
-                    elif event.key == self.key_codes[4]: self.keydown[4] = False
-        # if run_mode != 'qwerty' then check force from keyboard (...later)
+                if event.key == self.key_codes[0]: self.keydown[0] = False
+                elif event.key == self.key_codes[1]: self.keydown[1] = False
+                elif event.key == self.key_codes[2]: self.keydown[2] = False
+                elif event.key == self.key_codes[3]: self.keydown[3] = False
+                elif event.key == self.key_codes[4]: self.keydown[4] = False
 
     def run(self):
         while True:
@@ -54,9 +41,10 @@ class Game(object):
             if self.trial_stage == 'splash':
                 self.draw_splash()
             else:
-                if self.trial_stage == 'wait' and self.feedback_status == 'idle':
-                    self.get_next_feedback_value()
                 self.timer_based_updates()
+                if (self.trial_stage == 'wait' and
+                        (self.feedback_status == 'idle' or self.feedback_status == 'wait')):
+                    self.check_for_next_feedback_value()
                 if self.trial_stage in ('zscore','wait','iti'):
                     self.run_rest()
                 elif self.trial_stage == 'cue':
@@ -72,6 +60,7 @@ class Game(object):
         self.trial_clock.reset() 
         self.trial_clock.add(self.ZSCORE_TIME)
         self.reset_for_next_trial()
+        self.feedback_calc_trial.value = -1
         self.trial_count = 0
         self.run_count += 1
         if self.run_count < self.RUNS-1:
@@ -106,12 +95,14 @@ class Game(object):
         self.TRIAL_FILE.write('run_num,')
         for class_num in range(clf_data.size-1):
             self.TRIAL_FILE.write('class_'+str(class_num+1)+',')
+        self.TRIAL_FILE.write('delay,')
         self.TRIAL_FILE.write('dollars_reward\n')
 
-    def write_trial_data(self, clf_data):
+    def write_trial_data(self, clf_data, delay):
         self.TRIAL_FILE.write(str(game.run_count+1)+',')
         for class_num in range(clf_data.size-1):
             self.TRIAL_FILE.write(str(clf_data[class_num])+',')
+        self.TRIAL_FILE.write(str(delay)+',')
         self.TRIAL_FILE.write(str(self.run_reward_history[-1])+'\n')
 
     def reset_for_splash(self):
@@ -122,46 +113,27 @@ class Game(object):
         self.self_pace_start_clock.add(self.SELF_PACE_START_TIME)
         self.trial_stage = 'splash'
 
-    def get_next_feedback_value(self):
-        ############################################
-        # for debugging:
-        # begin_request_time = time.time()
-        ############################################
+    def check_for_next_feedback_value(self):
+        if self.feedback_status == 'idle':
+            self.feedback_status = 'wait'
+            self.begin_wait_time = time.time()
+        if self.feedback_calc_trial.value == self.trial_count:
+            self.update_feedback_value()
+            self.feedback_status = 'calculated'
 
-        # real request:
-        # instead, receive data over websocket here
-        while True:
-            try:
-                request_response = r.get(self.NETWORK_TARGET+str(self.trial_count)+'.txt',timeout=(0.01,0.01))
-                if request_response.status_code == 200:
-                    next_feedback = request_response.text
-                    clf_data = np.loadtxt(sio.StringIO(next_feedback))
-                    if clf_data.size < 3:
-                        pass
-                    else:
-                        break
-            except:
-                pass 
-        # maybe set all below as a callback?
-        clf_data = np.loadtxt(sio.StringIO(next_feedback))
-        ############################################
-        # for debugging:
-        # random_score = np.random.random()
-        # clf_data = np.array([random_score,1-random_score,1])
-        ############################################
+    def update_feedback_value(self):
+        clf_data = np.zeros(self.num_classes+1)
+        clf_data[:-1] = self.clf_outs[:]
+        clf_data[-1] = self.target_class.value
         target_score = clf_data[int(clf_data[-1]-1)]
         self.feedback_score_history.append(target_score)
         self.run_reward_history.append(target_score*self.MAX_TRIAL_REWARD)
-        self.total_reward += game.run_reward_history[-1]
-        if not(game.header_written):
+        self.total_reward += self.run_reward_history[-1]
+        if not(self.header_written):
             self.write_trial_header(clf_data)
-            game.header_written = True
-        self.write_trial_data(clf_data)
-        self.feedback_status = 'calculated'
-        ############################################
-        # for debugging:
-        # print (time.time()-begin_request_time)
-        ############################################
+            self.header_written = True
+        delay = time.time()-self.begin_wait_time
+        self.write_trial_data(clf_data, delay)
 
     def reset_feedback_clock(self):
         self.feedback_update_clock.reset()
@@ -225,6 +197,7 @@ class Game(object):
                 self.check_input()
 
     def quit(self):
+        r.post(self.shutdown_url)
         core.quit()
 
 if __name__ == "__main__":

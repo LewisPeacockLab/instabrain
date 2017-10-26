@@ -1,13 +1,11 @@
 from psychopy.iohub import launchHubServer
 from psychopy import visual, monitors
 from psychopy import core
+import multiprocessing as mp
 import numpy as np
 import os, yaml
-try: 
-    from pydaq import Pydaq
-    SENSOR_ACTIVE = True
-except:
-    pass
+import SocketServer
+import insta_server as insta
 
 def generate_constants(game, subject_id, session_num):
     with open('game_config.yml') as f:
@@ -47,9 +45,6 @@ def generate_constants(game, subject_id, session_num):
 
     game.FEEDBACK_UPDATE_TIME = game.TR_TIME*game.CONFIG['feedback-update-trs']
 
-    # networking
-    game.NETWORK_TARGET = 'http://'+str(game.CONFIG['server-ip'])+':'+str(game.CONFIG['server-port'])+'/'
-
     # screen dimensions 
     # game.SCREEN_DIMS = [1024, 768]
     # game.SCREEN_DISTANCE = 136; game.SCREEN_WIDTH = 85.7 # cm
@@ -70,7 +65,6 @@ def generate_constants(game, subject_id, session_num):
     game.FIXATION_COLOR = -0.4
 
     # key presses
-    game.input_mode = game.CONFIG['input-mode'] # 'qwerty', 'sensor'
     game.keydown = [False,False,False,False,False]
     game.key_codes = [u'9',
                       u'8',
@@ -88,7 +82,6 @@ def generate_variables(game):
     game.show_cue = False
     game.header_written = False
     game.feedback_score_history = [0]
-    game.feedback_requesting_bool = False
     game.trial_stage = 'splash' # splash, zscore, cue, wait, feedback, iti
     game.feedback_status = 'idle' # idle, calculated
 
@@ -152,7 +145,21 @@ def generate_variables(game):
     game.self_pace_start_clock = core.Clock()
     game.trial_count = 0
     game.run_count = -1
+    game.begin_wait_time = 0
 
     # reward
     game.run_reward_history = []
     game.total_reward = 0
+
+    # networking
+    game.shutdown_url = game.CONFIG['shutdown-url']
+    game.target_class = mp.Value('i', 0)
+    game.feedback_calc_trial = mp.Value('i', -1)
+    game.num_classes = game.CONFIG['num-classes']
+    game.clf_outs = mp.Array('d', game.num_classes)
+    game.server_running_bool = mp.Value('i', 1)
+    game.server_process = mp.Process(target = insta.start_server,
+                                     args = (game.target_class,
+                                        game.feedback_calc_trial,
+                                        game.clf_outs,))
+    game.server_process.start()

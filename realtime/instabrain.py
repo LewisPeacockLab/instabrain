@@ -7,7 +7,7 @@ import nibabel as nib
 import os, yaml, time, subprocess
 import requests as r
 
-class SmokerWatcher(PatternMatchingEventHandler):
+class InstaWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
         PatternMatchingEventHandler.__init__(self, 
             patterns=['*SB*.imgdat.tmp'],
@@ -80,7 +80,7 @@ class SmokerWatcher(PatternMatchingEventHandler):
         rep = int(img_file.split('-R')[1].split('-')[0])-1
         slc = int(img_file.split('-S')[1].split('.')[0])-1
         with open(event.src_path.rsplit('.tmp')[0]) as f:
-            self.raw_img_array[:,:,slc,rep] = np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims)
+            self.raw_img_array[:,:,slc,rep] = np.rot90(np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims),k=-1)
         self.img_status_array[rep] += 1
         if self.img_status_array[rep] == self.num_slices:
             self.pool.apply_async(func = process_volume,
@@ -108,9 +108,10 @@ class SmokerWatcher(PatternMatchingEventHandler):
         payload = {"clf_outs": out_data[:-1],
             "target_class": out_data[-1],
             "trial_num": self.trial_count}
-        post_status = 404
-        while post_status != 200:
-            post_status = r.post(self.post_url, json=payload)
+        status_code = 404
+        while status_code != 200:
+            post_status = r.post(post_url, json=payload)
+            status_code = post_status.status_code
 
     def reset_for_next_run(self):
         self.run_count += 1
@@ -141,7 +142,7 @@ def start_watcher(CONFIG, subject_id):
     CONFIG['subject-id'] = subject_id
     OBS_TIMEOUT = 0.01
     event_observer = Observer(OBS_TIMEOUT)
-    event_handler = SmokerWatcher(CONFIG)
+    event_handler = InstaWatcher(CONFIG)
     event_observer.schedule(event_handler,
                             CONFIG['watch-dir'],
                             recursive=False)
