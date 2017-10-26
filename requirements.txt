@@ -1,5 +1,6 @@
 # System packages
 watchdog
+requests
 
 # File processing
 PyYAML
