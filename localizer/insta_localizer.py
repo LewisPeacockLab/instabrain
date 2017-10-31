@@ -1,5 +1,5 @@
 import numpy as np
-import yaml,os,glob
+import yaml,os,glob,pickle
 from mvpa2.clfs.smlr import SMLR
 from mvpa2.datasets.mri import fmri_dataset
 from mvpa2.base.dataset import vstack
@@ -76,6 +76,10 @@ class InstaLocalizer(object):
     def apply_classifier(self, data):
         self.clf.predict(data)
         return self.clf.ca.estimates
+
+    def save_classifier(self):
+        self.clf.voxel_indices = self.fmri_data.fa.voxel_indices
+        pickle.dump(self.clf,open(self.ref_dir+'/clf.p','wb'))
 
     def generate_distributions(self):
         self.voxel_means = np.zeros((self.fmri_data.nfeatures,self.n_class))

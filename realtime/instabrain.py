@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
-import os, yaml, time, subprocess
+import os, yaml, time, pickle, subprocess
 import requests as r
 
 class InstaWatcher(PatternMatchingEventHandler):
@@ -36,34 +36,28 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.ref_dir = os.getcwd()+'/ref/'+self.subject_id
         self.rfi_file = self.ref_dir+'/rfi.nii'
         self.rfi_img = nib.load(self.rfi_file)
+        self.rfi_data = self.rfi_img.get_data()
         self.ref_affine = self.rfi_img.get_qform()
         self.ref_header = self.rfi_img.header
-        self.clf_file = self.ref_dir+'/clf.nii'
+        self.clf_file = self.ref_dir+'/clf.p'
         self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
         self.proc_dir = os.getcwd()+'/proc'
         self.watch_dir = config['watch-dir']
 
         # logic and initialization
-        self.load_clf(self.clf_file)
+        self.slice_dims = (self.rfi_data.shape[0],self.rfi_data.shape[1])
+        self.num_slices = self.rfi_data.shape[2]
+        self.clf = pickle.load(open(self.clf_file,'rb'))
+        self.num_roi_voxels = np.shape(self.clf.voxel_indices)[0]
         self.archive_bool = config['archive-data']
         self.reset_img_arrays()
 
         # networking
         self.post_url = config['post-url']
 
-    def load_clf(self, filename):
-        self.clf_img = nib.load(filename).get_data()
-        self.slice_dims = (self.clf_img.shape[0],self.clf_img.shape[1])
-        self.num_slices = self.clf_img.shape[2]
-        self.clf_voxels = np.where(self.clf_img!=0)
-        self.clf_voxels = np.ascontiguousarray(self.clf_voxels)
-        self.clf_voxels = np.ascontiguousarray(self.clf_voxels[0:3,:].T)
-        self.roi_voxels = np.unique(self.clf_voxels.view([('', self.clf_voxels.dtype)]*self.clf_voxels.shape[1]))
-        self.roi_voxels = self.roi_voxels.view(self.clf_voxels.dtype).reshape((self.roi_voxels.shape[0], self.clf_voxels.shape[1]))
-        self.num_roi_voxels = np.shape(self.roi_voxels)[0]
-        self.classifier = np.zeros((self.num_roi_voxels,np.shape(self.clf_img)[3]))
-        for out_class in range(np.shape(self.clf_img)[3]):
-            self.classifier[:,out_class] = map_voxels_to_roi(self.clf_img[:,:,:,out_class], self.roi_voxels)
+    def apply_classifier(self, data):
+        self.clf.predict(data)
+        return self.clf.ca.estimates
 
     def reset_img_arrays(self):
         self.img_status_array = np.zeros(self.run_trs)
@@ -84,7 +78,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.img_status_array[rep] += 1
         if self.img_status_array[rep] == self.num_slices:
             self.pool.apply_async(func = process_volume,
-                args = (self.raw_img_array[:,:,:,rep],self.roi_voxels,
+                args = (self.raw_img_array[:,:,:,rep],self.clf.voxel_indices,
                     rep,self.rfi_file,self.proc_dir,self.ref_header,self.ref_affine),
                 callback = self.save_processed_roi)
 
@@ -97,9 +91,8 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.trial_count += 1
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
-            clf_out_raw = np.matmul(zscore_avg_roi,self.classifier)
-            clf_out_softmax = np.exp(clf_out_raw)/sum(np.exp(clf_out_raw))
-            out_data = np.append(clf_out_softmax, self.target_class)
+            clf_out = self.apply_classifier(zscore_avg_roi)
+            out_data = np.append(clf_out, self.target_class)
             self.send_clf_outputs(out_data)
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
