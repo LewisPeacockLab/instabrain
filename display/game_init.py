@@ -5,7 +5,7 @@ import multiprocessing as mp
 import numpy as np
 import os, yaml
 import SocketServer
-import insta_server as insta
+import game_server as gs
 
 def generate_constants(game, subject_id, session_num):
     with open('game_config.yml') as f:
@@ -158,7 +158,7 @@ def generate_variables(game):
     game.num_classes = game.CONFIG['num-classes']
     game.clf_outs = mp.Array('d', game.num_classes)
     game.server_running_bool = mp.Value('i', 1)
-    game.server_process = mp.Process(target = insta.start_server,
+    game.server_process = mp.Process(target = gs.start_server,
                                      args = (game.target_class,
                                         game.feedback_calc_trial,
                                         game.clf_outs,))
