@@ -8,9 +8,9 @@ def start_server(target_class, feedback_calc_trial, clf_outs):
     @app.route('/rt_data', methods=['POST'])
     def rt_data():
         data = request.get_json(force=True)
-        app.target_class.value = data['target_class']
+        app.target_class.value = int(data['target_class'])
         app.clf_outs[:] = data['clf_outs'][:]
-        app.feedback_calc_trial.value = data['trial_num']
+        app.feedback_calc_trial.value = int(data['trial_num'])
         return 'data_received'
     @app.route('/shutdown', methods=['POST'])
     def shutdown():

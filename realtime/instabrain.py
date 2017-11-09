@@ -64,7 +64,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.raw_img_array = np.zeros((self.slice_dims[0],self.slice_dims[1],
             self.num_slices,self.run_trs),dtype=np.uint16)
         self.raw_roi_array = np.zeros((self.num_roi_voxels,self.run_trs))
-        self.trial_count = 0
+        self.trial_count = -1
         self.zscore_calc = False
         self.voxel_sigmas = np.zeros(self.num_roi_voxels)
 
