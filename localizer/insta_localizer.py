@@ -47,13 +47,17 @@ class InstaLocalizer(object):
         self.generate_motor_masks()
         self.motion_correct()
 
-    def extract_features(self, roi_name='BA4a', hemi='rh'):
+    def extract_features(self, roi_name=None, hemi='rh'):
         datasets = []
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
         self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
+        if roi_name == None:
+            mask = None
+        else:
+            mask = self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii'
         for run in range(self.num_runs):
             datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
-                mask=self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii',
+                mask=mask,
                 targets=self.tr_targets[self.tr_chunks==run],
                 chunks=self.tr_chunks[self.tr_chunks==run]))
         self.fmri_data = vstack(datasets, a=0)

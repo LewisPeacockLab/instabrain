@@ -56,7 +56,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.post_url = config['post-url']
 
     def apply_classifier(self, data):
-        self.clf.predict(data)
+        self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
         return self.clf.ca.estimates
 
     def reset_img_arrays(self):
@@ -98,12 +98,12 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.reset_for_next_run()
 
     def send_clf_outputs(self, out_data):
-        payload = {"clf_outs": out_data[:-1],
+        payload = {"clf_outs": list(out_data[:-1]),
             "target_class": out_data[-1],
             "trial_num": self.trial_count}
         status_code = 404
         while status_code != 200:
-            post_status = r.post(post_url, json=payload)
+            post_status = r.post(self.post_url, json=payload)
             status_code = post_status.status_code
 
     def reset_for_next_run(self):
@@ -157,14 +157,14 @@ if __name__ == "__main__":
     with open('insta_config.yml') as f:
         CONFIG = yaml.load(f)
 
-    # start remote recon server
-    if not(CONFIG['debug-bool']):
-        start_remote_recon(CONFIG)
-
     # start realtime watcher
     if CONFIG['debug-bool']:
         CONFIG['watch-dir'] = '../data/dump'
     start_watcher(CONFIG, args.subjectid)
+
+    # start remote recon server
+    if not(CONFIG['debug-bool']):
+        start_remote_recon(CONFIG)
 
     # dummy loop for ongoing processes
     while True:

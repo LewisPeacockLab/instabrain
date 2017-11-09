@@ -17,5 +17,4 @@ def start_server(target_class, feedback_calc_trial, clf_outs):
         shutdown_func = request.environ.get('werkzeug.server.shutdown')
         shutdown_func()
         return 'Server shutting down...' 
-    app.run()
-
+    app.run(host='0.0.0.0')
