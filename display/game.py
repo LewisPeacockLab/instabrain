@@ -153,6 +153,8 @@ class Game(object):
         if self.feedback_status == 'calculated':
             self.reset_feedback_clock()
             self.feedback_status = 'display'
+        elif self.feedback_status == 'wait':
+            self.check_for_next_feedback_value()
         if self.feedback_status == 'display':
             self.show_cue = False
             self.show_feedback = True
