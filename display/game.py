@@ -93,6 +93,7 @@ class Game(object):
 
     def write_trial_header(self, clf_data):
         self.TRIAL_FILE.write('run_num,')
+        self.TRIAL_FILE.write('trial_num,')
         for class_num in range(clf_data.size-1):
             self.TRIAL_FILE.write('class_'+str(class_num+1)+',')
         self.TRIAL_FILE.write('delay,')
@@ -100,6 +101,7 @@ class Game(object):
 
     def write_trial_data(self, clf_data, delay):
         self.TRIAL_FILE.write(str(game.run_count+1)+',')
+        self.TRIAL_FILE.write(str(game.trial_count+1)+',')
         for class_num in range(clf_data.size-1):
             self.TRIAL_FILE.write(str(clf_data[class_num])+',')
         self.TRIAL_FILE.write(str(delay)+',')

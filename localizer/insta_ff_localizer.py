@@ -10,7 +10,7 @@ from mvpa2.clfs.smlr import SMLR
 
 class InstaLocalizer(object):
     def __init__(self, subject_id):
-        with open('localizer_config.yml') as f:
+        with open('ff_localizer_config.yml') as f:
             self.CONFIG = yaml.load(f)
         
         # directories
@@ -20,7 +20,8 @@ class InstaLocalizer(object):
         self.ref_dir = self.base_dir+'/ref'
         self.rfi_img = self.ref_dir+'/rfi.nii'
         self.reg_mat = self.ref_dir+'/rai2rfi.dat'
-        self.bold_dir = self.base_dir+'/bold'
+        self.bold_dir = self.base_dir+'/bold-ff'
+        self.proc_dir = self.base_dir+'/proc'
 
         # timing
         self.tr = self.CONFIG['TR']
@@ -30,12 +31,13 @@ class InstaLocalizer(object):
         self.trial_feature_trs = self.CONFIG['TRIAL_FEATURE_TRS']
         self.trials_per_run = self.vols_per_run/self.trs_per_trial
         self.presses_per_trial = self.CONFIG['PRESSES_PER_TRIAL']
+        self.zscore_trs = self.CONFIG['ZSCORE_TRS']
 
         # labels
-        self.behav_data = np.loadtxt(self.ref_dir+'/ft-data.txt',delimiter=',',skiprows=1)
+        self.behav_data = np.loadtxt(self.ref_dir+'/ff-data.txt',delimiter=',',skiprows=1)
         self.trial_data = self.behav_data[::self.presses_per_trial,:]
-        self.trial_targets = self.trial_data[:,0]
-        self.trial_chunks = self.trial_data[:,-1]
+        self.trial_targets = self.trial_data[:,7]
+        self.trial_chunks = self.trial_data[:,0]
         self.n_class = np.unique(self.trial_targets).size
 
         # classifier
@@ -47,7 +49,15 @@ class InstaLocalizer(object):
         self.generate_motor_masks()
         self.motion_correct()
 
-    def extract_features(self, roi_name=None, hemi='rh'):
+    def concat_rt_data(self):
+        for run in range(1,self.num_runs+1):
+            run_data = self.proc_dir+'/run_'+str(run).zfill(2)+'/*mc*'
+            cmd = 'fslmerge -t ' + self.bold_dir + '/rrun-' + str(run).zfill(3) + ' ' + run_data
+            os.system(cmd)
+        gunzip_cmd = 'gunzip '+self.bold_dir+'/*.gz'
+        os.system(gunzip_cmd)
+
+    def extract_features(self, roi_name=None, hemi='rh', zs_all=True, detrend=True):
         datasets = []
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
         self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
@@ -56,10 +66,12 @@ class InstaLocalizer(object):
         else:
             mask = self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii'
         for run in range(self.num_runs):
+            run_tr_targets = np.append(-1*np.ones(self.zscore_trs), self.tr_targets[self.tr_chunks==run])
+            run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
             datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
                 mask=mask,
-                targets=self.tr_targets[self.tr_chunks==run],
-                chunks=self.tr_chunks[self.tr_chunks==run]))
+                targets=run_tr_targets,
+                chunks=run_tr_chunks))
         self.fmri_data = vstack(datasets, a=0)
 
         self.active_trs = np.zeros(self.trs_per_trial)
@@ -68,11 +80,17 @@ class InstaLocalizer(object):
         self.trial_regressor = np.tile(range(int(self.num_runs*self.trials_per_run)),(self.trs_per_trial,1)).flatten('F')
         self.fmri_data.sa['active_trs'] = self.active_trs
         self.fmri_data.sa['trial_regressor'] = self.trial_regressor
-        poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
-        zscore(self.fmri_data, chunks_attr='chunks')
+        if detrend:
+            poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
+        if zs_all:
+            zscore(self.fmri_data, chunks_attr='chunks')
+        else:
+            zscore(self.fmri_data, chunks_attr='chunks', param_est=('targets',[-1]))
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
+        self.fmri_data = self.fmri_data[self.fmri_data.targets!=-1]
+
 
     def train_classifier(self):
         self.clf.train(self.fmri_data)
@@ -93,7 +111,19 @@ class InstaLocalizer(object):
             self.clf.train(self.fmri_data[train_ex])
             out_acc = np.mean(self.clf.predict(self.fmri_data[test_ex])==self.fmri_data[test_ex].targets)
             self.out_accs.append(out_acc)
-            
+
+    def test_time_shift(self, clf, roi_name='ba4a'):
+        self.time_shift_means = []
+        self.loc_time_shift_out = []
+        self.time_shift_ses = []
+        for tr in range(1,9):
+            self.trial_feature_trs = [tr,tr+2]
+            self.extract_features(roi_name)
+            self.cross_validate(5)
+            self.time_shift_means.append(np.mean(self.out_accs))
+            self.time_shift_ses.append(np.std(self.out_accs)/2.)
+            self.loc_time_shift_out.append(np.mean(clf.predict(self.fmri_data)==self.fmri_data.targets))
+
     def save_classifier(self):
         self.clf.voxel_indices = self.fmri_data.fa.voxel_indices
         pickle.dump(self.clf,open(self.ref_dir+'/clf.p','wb'))
