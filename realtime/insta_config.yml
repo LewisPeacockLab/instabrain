@@ -22,3 +22,6 @@ wait-trs: 4
 feedback-trs: 1
 iti-trs: 2
 moving-avg-trs: 3
+
+# MRI sequence
+multiband: True

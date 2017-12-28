@@ -9,8 +9,12 @@ import requests as r
 
 class InstaWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
+        if config['multiband']:
+            file_pattern = '*MB*.imgdat.tmp'
+        else:
+            file_pattern = '*SB*.imgdat.tmp'
         PatternMatchingEventHandler.__init__(self, 
-            patterns=['*SB*.imgdat.tmp'],
+            patterns=[file_pattern],
             ignore_patterns=[],
             ignore_directories=True)
         # multiprocessing workers
