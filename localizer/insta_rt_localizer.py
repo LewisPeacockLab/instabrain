@@ -8,9 +8,9 @@ from mvpa2.mappers.detrend import poly_detrend
 from mvpa2.mappers.fx import mean_group_sample
 from mvpa2.clfs.smlr import SMLR
 
-class InstaLocalizer(object):
+class InstaRtLocalizer(object):
     def __init__(self, subject_id):
-        with open('ff_localizer_config.yml') as f:
+        with open('rt_localizer_config.yml') as f:
             self.CONFIG = yaml.load(f)
         
         # directories

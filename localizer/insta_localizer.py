@@ -6,6 +6,8 @@ from mvpa2.base.dataset import vstack
 from mvpa2.mappers.zscore import zscore
 from mvpa2.mappers.detrend import poly_detrend
 from mvpa2.mappers.fx import mean_group_sample
+from mvpa2.measures.base import CrossValidation
+from mvpa2.generators.partition import NFoldPartitioner
 from mvpa2.clfs.smlr import SMLR
 
 class InstaLocalizer(object):
@@ -81,18 +83,13 @@ class InstaLocalizer(object):
         self.clf.predict(data)
         return self.clf.ca.estimates
 
-    def cross_validate(self, n_folds):
-        train_ratio = 1-1/float(n_folds)
-        n_samples = self.fmri_data.nsamples
-        train_range = np.arange(n_samples)
-        np.random.shuffle(train_range)
-        self.out_accs = []
-        for fold in range(n_folds):
-            test_ex = train_range[int(np.floor(fold*n_samples/float(n_folds))+1):int(np.ceil((fold+1)*n_samples/float(n_folds)))]
-            train_ex = np.setdiff1d(train_range,test_ex)
-            self.clf.train(self.fmri_data[train_ex])
-            out_acc = np.mean(self.clf.predict(self.fmri_data[test_ex])==self.fmri_data[test_ex].targets)
-            self.out_accs.append(out_acc)
+    def cross_validate(self, leave_out_runs=1):
+        partitioner = NFoldPartitioner(cvtype=leave_out_runs,
+            count=np.size(np.unique(self.fmri_data.chunks)),
+            selection_strategy='random')
+        cvte = CrossValidation(self.clf, partitioner,
+            errorfx=lambda p, t: np.mean(p == t))
+        self.cv_results = cvte(self.fmri_data) 
             
     def save_classifier(self):
         self.clf.voxel_indices = self.fmri_data.fa.voxel_indices
