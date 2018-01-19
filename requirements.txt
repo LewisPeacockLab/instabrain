@@ -9,7 +9,7 @@ PyYAML
 numpy
 scipy
 nibabel
-# psychopy
 
 # Display packages
-pygame
+# psychopy
+# pygame

@@ -4,6 +4,7 @@
 
 # debugging
 debug-bool: True
+logging-bool: False
 
 # directory where incoming images appears
 watch-dir: /home/realtime/10GbDump
@@ -14,14 +15,22 @@ archive-data: True
 post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
 
 # imaging params
-trials-per-run: 15
 tr-time: 2.0 #seconds
 zscore-trs: 10
+
+# feedback type (continuous or intermittent)
+feedback-type: intermittent # continuous
+moving-avg-trs: 3
+
+# intermittent feedback params
+trials-per-run: 15
 cue-trs: 3
 wait-trs: 4
 feedback-trs: 1
 iti-trs: 2
-moving-avg-trs: 3
+
+# continuous feedback params
+feedback-trs-per-run: 150
 
 # MRI sequence
 multiband: True

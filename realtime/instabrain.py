@@ -21,19 +21,25 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.pool = mp.Pool()
 
         # timings
-        self.trials = config['trials-per-run']
-        self.zscore_trs = config['zscore-trs']
-        self.cue_trs = config['cue-trs']
-        self.wait_trs = config['wait-trs']
-        self.feedback_trs = config['feedback-trs']
-        self.iti_trs = config['iti-trs']
-        self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
-        self.run_trs = self.zscore_trs+self.trials*self.trial_trs
         self.run_count = 0
-        self.moving_avg_trs = config['moving-avg-trs']
-        self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
-        self.feedback_calc_trs = (self.zscore_trs+self.trs_to_score_calc
-                                  +np.arange(self.trials)*self.trial_trs-1)
+        if config['feedback-type'] == 'intermittent':
+            self.trials = config['trials-per-run']
+            self.zscore_trs = config['zscore-trs']
+            self.cue_trs = config['cue-trs']
+            self.wait_trs = config['wait-trs']
+            self.feedback_trs = config['feedback-trs']
+            self.iti_trs = config['iti-trs']
+            self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
+            self.run_trs = self.zscore_trs+self.trials*self.trial_trs
+            self.moving_avg_trs = config['moving-avg-trs']
+            self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
+            self.feedback_calc_trs = (self.zscore_trs+self.trs_to_score_calc
+                                      +np.arange(self.trials)*self.trial_trs-1)
+        elif config['feedback-type'] == 'continuous':
+            self.feedback_trs = config['feedback-trs-per-run']
+            self.run_trs = self.zscore_trs+self.feedback_trs
+            self.feedback_calc_trs = np.arange(self.zscore_trs,self.feedback_trs)
+
 
         # files and directories
         self.subject_id = config['subject-id']
@@ -116,8 +122,8 @@ class InstaWatcher(PatternMatchingEventHandler):
             if self.archive_bool:
                 run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
                 os.mkdir(run_dir)
-                os.system('mv '+target_dir+'/*.* '+run_dir+' 2> /dev/null')
-            os.system('rm '+target_dir+'/*.* 2> /dev/null')
+                os.system('mv '+target_dir+'/*.* '+run_dir+' 2>/dev/null')
+            os.system('rm '+target_dir+'/*.* 2>/dev/null')
         self.reset_img_arrays()
 
 # standalone functions
@@ -125,7 +131,10 @@ def process_volume(raw_img, roi_voxels, rep, rfi_file, proc_dir, ref_header, ref
     temp_file = proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_file = proc_dir + '/img_mc_' + str(rep+1).zfill(3) + '.nii.gz'
     nib.save(nib.Nifti1Image(raw_img, ref_affine, header=ref_header), temp_file)
-    os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
+    # new AFNI motion correction
+    os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' '+temp_file+' 2>/dev/null')
+    # # old FSL motion correction
+    # os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
     roi_data = map_voxels_to_roi(nib.load(mc_file).get_data(),roi_voxels)
     return (roi_data, rep)
 
