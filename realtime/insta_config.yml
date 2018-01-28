@@ -34,3 +34,6 @@ feedback-trs-per-run: 150
 
 # MRI sequence
 multiband: True
+
+# motion correction
+mc-mode: 'afni' # or fsl

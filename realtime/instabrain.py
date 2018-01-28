@@ -17,6 +17,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             patterns=[file_pattern],
             ignore_patterns=[],
             ignore_directories=True)
+
         # multiprocessing workers
         self.pool = mp.Pool()
 
@@ -55,6 +56,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.watch_dir = config['watch-dir']
 
         # logic and initialization
+        self.mc_mode = config['mc-mode'].lower()
         self.slice_dims = (self.rfi_data.shape[0],self.rfi_data.shape[1])
         self.num_slices = self.rfi_data.shape[2]
         self.clf = pickle.load(open(self.clf_file,'rb'))
@@ -89,7 +91,8 @@ class InstaWatcher(PatternMatchingEventHandler):
         if self.img_status_array[rep] == self.num_slices:
             self.pool.apply_async(func = process_volume,
                 args = (self.raw_img_array[:,:,:,rep],self.clf.voxel_indices,
-                    rep,self.rfi_file,self.proc_dir,self.ref_header,self.ref_affine),
+                    rep,self.rfi_file,self.proc_dir,self.ref_header,
+                    self.ref_affine, self.mc_mode),
                 callback = self.save_processed_roi)
 
     def save_processed_roi(self, roi_and_rep_data):
@@ -127,14 +130,15 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.reset_img_arrays()
 
 # standalone functions
-def process_volume(raw_img, roi_voxels, rep, rfi_file, proc_dir, ref_header, ref_affine):
+def process_volume(raw_img, roi_voxels, rep, rfi_file,
+        proc_dir, ref_header, ref_affine, mc_mode):
     temp_file = proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_file = proc_dir + '/img_mc_' + str(rep+1).zfill(3) + '.nii.gz'
     nib.save(nib.Nifti1Image(raw_img, ref_affine, header=ref_header), temp_file)
-    # new AFNI motion correction
-    os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' '+temp_file+' 2>/dev/null')
-    # # old FSL motion correction
-    # os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
+    if mc_mode == 'afni':
+        os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' '+temp_file+' 2>/dev/null')
+    elif mc_mode == 'fsl':
+        os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
     roi_data = map_voxels_to_roi(nib.load(mc_file).get_data(),roi_voxels)
     return (roi_data, rep)
 
