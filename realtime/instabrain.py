@@ -25,21 +25,21 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.run_count = 0
         if config['feedback-type'] == 'intermittent':
             self.trials = config['trials-per-run']
-            self.zscore_trs = config['zscore-trs']
+            self.baseline_trs = config['baseline-trs']
             self.cue_trs = config['cue-trs']
             self.wait_trs = config['wait-trs']
             self.feedback_trs = config['feedback-trs']
             self.iti_trs = config['iti-trs']
             self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
-            self.run_trs = self.zscore_trs+self.trials*self.trial_trs
+            self.run_trs = self.baseline_trs+self.trials*self.trial_trs
             self.moving_avg_trs = config['moving-avg-trs']
             self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
-            self.feedback_calc_trs = (self.zscore_trs+self.trs_to_score_calc
+            self.feedback_calc_trs = (self.baseline_trs+self.trs_to_score_calc
                                       +np.arange(self.trials)*self.trial_trs-1)
         elif config['feedback-type'] == 'continuous':
             self.feedback_trs = config['feedback-trs-per-run']
-            self.run_trs = self.zscore_trs+self.feedback_trs
-            self.feedback_calc_trs = np.arange(self.zscore_trs,self.feedback_trs)
+            self.run_trs = self.baseline_trs+self.feedback_trs
+            self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs)
 
 
         # files and directories
@@ -51,7 +51,11 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.ref_affine = self.rfi_img.get_qform()
         self.ref_header = self.rfi_img.header
         self.clf_file = self.ref_dir+'/clf.p'
-        self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
+        # optional: target class can be specified in backend
+        try:
+            self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
+        except:
+            self.target_class = -1
         self.proc_dir = os.getcwd()+'/proc'
         self.watch_dir = config['watch-dir']
 
@@ -98,7 +102,7 @@ class InstaWatcher(PatternMatchingEventHandler):
     def save_processed_roi(self, roi_and_rep_data):
         (roi_data,rep) = roi_and_rep_data 
         self.raw_roi_array[:,rep] = roi_data
-        if rep == (self.zscore_trs-1):
+        if rep == (self.baseline_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
         if rep in self.feedback_calc_trs:
             self.trial_count += 1
@@ -168,10 +172,11 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Function arguments')
     parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
+    parser.add_argument('-c','--config', help='Configuration file',default='default')
     args = parser.parse_args()
 
     # load config
-    with open('insta_config.yml') as f:
+    with open('config/'+args.config+'.yml') as f:
         CONFIG = yaml.load(f)
 
     # start realtime watcher
