@@ -41,11 +41,14 @@ A rundown of the configuration parameters is as follows:
 
 #### debugging
 `debug-bool`: `True` or `False` value indicating whether data will come from the `instabrain/data` folder or from a real MRI scanner. Should be set to `False` for real operation
+
 `logging-bool`: `True` or `False` value indicating whether performance logs should be recorded. Should only be set to `True` when benchmarking performance
 
 #### file processing
 `watch-dir`: `path/to/directory` of the directory where incoming images will appear
+
 `recon-script`: `path/to/script.sh` of the path to the remote reconstruction script
+
 `archive-data`: `True` or `False` value or whether or not to save realtime data. Should only be set to `True` during benchmarking and debugging
 
 #### networking
@@ -53,17 +56,23 @@ A rundown of the configuration parameters is as follows:
 
 #### imaging params
 `tr-time`: `float` of the TR duration in seconds
+
 `baseline-trs`: `integer` of the number of TRs to use for baseline calculation
 
 #### feedback type (continuous or intermittent)
 `feedback-type`: `string` containing either `intermittent` or `continuous`
+
 `moving-avg-trs`: `integer` containing number of TRs to use for moving average
 
 #### intermittent feedback params
 `trials-per-run`: `integer` containing number of trials per run
+
 `cue-trs`: `integer` containing number of cue TRs per trial
+
 `wait-trs`: `integer` containing number of TRs between cue and feedback per trial
+
 `feedback-trs`: `integer` containing duration of feedback in TRs per trial
+
 `iti-trs`: `integer` containing number of TRs between end of feedback and the next trial
 
 #### continuous feedback params
