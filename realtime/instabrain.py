@@ -23,24 +23,14 @@ class InstaWatcher(PatternMatchingEventHandler):
 
         # timings
         self.run_count = 0
-        if config['feedback-type'] == 'intermittent':
-            self.trials = config['trials-per-run']
-            self.baseline_trs = config['baseline-trs']
-            self.cue_trs = config['cue-trs']
-            self.wait_trs = config['wait-trs']
-            self.feedback_trs = config['feedback-trs']
-            self.iti_trs = config['iti-trs']
-            self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
-            self.run_trs = self.baseline_trs+self.trials*self.trial_trs
-            self.moving_avg_trs = config['moving-avg-trs']
-            self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
-            self.feedback_calc_trs = (self.baseline_trs+self.trs_to_score_calc
-                                      +np.arange(self.trials)*self.trial_trs-1)
-        elif config['feedback-type'] == 'continuous':
-            self.feedback_trs = config['feedback-trs-per-run']
-            self.run_trs = self.baseline_trs+self.feedback_trs
-            self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs)
+        self.baseline_trs = config['baseline-trs']
+        self.feedback_trs = config['feedback-trs']
+        self.run_trs = self.baseline_trs+self.feedback_trs
+        self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs)
 
+        # data processing
+        self.moving_avg_trs = config['moving-avg-trs']
+        self.mc_mode = config['mc-mode'].lower()
 
         # files and directories
         self.subject_id = config['subject-id']
@@ -60,7 +50,6 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.watch_dir = config['watch-dir']
 
         # logic and initialization
-        self.mc_mode = config['mc-mode'].lower()
         self.slice_dims = (self.rfi_data.shape[0],self.rfi_data.shape[1])
         self.num_slices = self.rfi_data.shape[2]
         self.clf = pickle.load(open(self.clf_file,'rb'))
@@ -80,7 +69,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.raw_img_array = np.zeros((self.slice_dims[0],self.slice_dims[1],
             self.num_slices,self.run_trs),dtype=np.uint16)
         self.raw_roi_array = np.zeros((self.num_roi_voxels,self.run_trs))
-        self.trial_count = -1
+        self.tr_count = -1
         self.zscore_calc = False
         self.voxel_sigmas = np.zeros(self.num_roi_voxels)
 
@@ -105,7 +94,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         if rep == (self.baseline_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
         if rep in self.feedback_calc_trs:
-            self.trial_count += 1
+            self.tr_count += 1
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
@@ -117,7 +106,7 @@ class InstaWatcher(PatternMatchingEventHandler):
     def send_clf_outputs(self, out_data):
         payload = {"clf_outs": list(out_data[:-1]),
             "target_class": out_data[-1],
-            "trial_num": self.trial_count}
+            "tr_num": self.tr_count}
         status_code = 404
         while status_code != 200:
             post_status = r.post(self.post_url, json=payload)
@@ -152,8 +141,10 @@ def map_voxels_to_roi(img, roi_voxels):
         out_roi[voxel] = img[roi_voxels[voxel,0],roi_voxels[voxel,1],roi_voxels[voxel,2]]
     return out_roi
 
-def start_watcher(CONFIG, subject_id):
+def start_watcher(CONFIG, subject_id, debug_bool=False, logging_bool=False):
     CONFIG['subject-id'] = subject_id
+    CONFIG['debug-bool'] = debug_bool
+    CONFIG['logging_bool'] = logging_bool
     OBS_TIMEOUT = 0.01
     event_observer = Observer(OBS_TIMEOUT)
     event_handler = InstaWatcher(CONFIG)
@@ -173,6 +164,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Function arguments')
     parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
     parser.add_argument('-c','--config', help='Configuration file',default='default')
+    parser.add_argument('-d','--debug', help='Debugging boolean', action='store_true', default=False)
+    parser.add_argument('-l','--logging', help='Logging boolean', action='store_true', default=False)
     args = parser.parse_args()
 
     # load config
@@ -180,12 +173,12 @@ if __name__ == "__main__":
         CONFIG = yaml.load(f)
 
     # start realtime watcher
-    if CONFIG['debug-bool']:
+    if args.debug:
         CONFIG['watch-dir'] = '../data/dump'
-    start_watcher(CONFIG, args.subjectid)
+    start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
 
     # start remote recon server
-    if not(CONFIG['debug-bool']):
+    if not(args.debug):
         start_remote_recon(CONFIG)
 
     # dummy loop for ongoing processes

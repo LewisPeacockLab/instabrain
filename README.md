@@ -1,5 +1,5 @@
 # instabrain
-Instabrain is a hackable real-time fMRI tool written in python that can leverage existing neuroimaging packages such as AFNI and FSL in real-time.
+Instabrain is a python tool for decoding fMRI patterns in real-time. This processing includes (1) motion correction using existing packages such as AFNI or FSL, (2) time series processing of voxel activities using NumPy and SciPy, and (3) decoding using PyMVPA classifiers.
 
 # Installing
 For now, just install dependencies. Some day, this will be a package.
@@ -25,7 +25,7 @@ Instabrain uses PyMVPA classifiers by default. The sample `localizer/insta_local
 
 ## Realtime
 
-The main feedback calculation script is `realtime/instabrain.py`. This script must be run with __reference data__ (`-s subject_id`) and a __configuration file__ (`-c study_name`).
+The main feedback calculation script is `realtime/instabrain.py`. This script must be run with __reference data__ (`-s subject_id`) and a __configuration file__ (`-c study_name`). There are also optional flags for __debugging with pre-recorded data__ (`-d`) and __logging performance__ (`-l`).
 
 ### Reference data
 
@@ -39,11 +39,6 @@ The configuration file should be named after the study being performed. A sample
 
 A rundown of the configuration parameters is as follows:
 
-#### debugging
-`debug-bool`: `True` or `False` value indicating whether data will come from the `instabrain/data` folder or from a real MRI scanner. Should be set to `False` for real operation
-
-`logging-bool`: `True` or `False` value indicating whether performance logs should be recorded. Should only be set to `True` when benchmarking performance
-
 #### file processing
 `watch-dir`: `path/to/directory` of the directory where incoming images will appear
 
@@ -55,39 +50,28 @@ A rundown of the configuration parameters is as follows:
 `post-url`: `http://XXX.XXX.XXX.XXX:PORT/post_directory` to send realtime data via POST requests
 
 #### imaging params
-`tr-time`: `float` of the TR duration in seconds
-
 `baseline-trs`: `integer` of the number of TRs to use for baseline calculation
 
-#### feedback type (continuous or intermittent)
-`feedback-type`: `string` containing either `intermittent` or `continuous`
+`feedback-trs`: `integer` containing number of TRs per run, not including baseline TRs
+
+#### data processing
 
 `moving-avg-trs`: `integer` containing number of TRs to use for moving average
 
-#### intermittent feedback params
-`trials-per-run`: `integer` containing number of trials per run
-
-`cue-trs`: `integer` containing number of cue TRs per trial
-
-`wait-trs`: `integer` containing number of TRs between cue and feedback per trial
-
-`feedback-trs`: `integer` containing duration of feedback in TRs per trial
-
-`iti-trs`: `integer` containing number of TRs between end of feedback and the next trial
-
-#### continuous feedback params
-`feedback-trs-per-run`: `integer` containing number of TRs per run, not including baseline TRs
+`mc-mode`: `string` containing either `AFNI` or `FSL` used to determined which motion correction will be used (AFNI's `3dvolreg` or FSL's `mcflirt`)
 
 #### MRI sequence
 `multiband`: `True` or `False` value indicating whether the sequence is multiband or not
 
-#### motion correction
-`mc-mode`: `string` containing either `AFNI` or `FSL` used to determined which motion correction will be used (AFNI's `3dvolreg` or FSL's `mcflirt`)
+### debugging
+The `-d` flag makes the watcher look for real-time data in the `instabrain/data` folder instead of from the MRI scanner. Only use this flag if you are testing instabrain away from the scanner.
+
+The `-l` flag indicates whether performance logs should be recorded. Only use this flag if you are benchmarking performance.
 
 ### Running the `realtime/instabrain.py` script
 
 The `instabrain.py` script should be run from within the realtime folder. The `/proc` folder is used for storing temporary files during motion correction.
 
-Running `instabrain.py` is simple as long as the required python packages have been installed and a motion correction script (either AFNI's `3dvolreg` or FSL's `mcflirt`) is in the system's `PATH` variable. For example, if a subject `bert` has been scanned in a localizer session, the files `realtime/ref/bert/rfi.nii` and `realtime/ref/bert/clf.p` must be created from this session. If we wish to run `bert` in a study called `cool_neurofeedback_study`, we must also create a `realtime/config/cool_neurofeedback_study.yml` containing the custom configuration for our experiment. Then, the experiment can be run using `python instabrain.py -s bert -c cool_neurofeedback_study`.
+Running `instabrain.py` is simple as long as the required python packages have been installed and a motion correction script (either AFNI's `3dvolreg` or FSL's `mcflirt`) is in the system's `PATH` variable. For example, if a subject `bert` has been scanned in a localizer session, the files `realtime/ref/bert/rfi.nii` and `realtime/ref/bert/clf.p` must be created from this session. If we wish to run `bert` in a study called `cool_neurofeedback_study`, we must also create a `realtime/config/cool_neurofeedback_study.yml` containing the custom configuration for our experiment. Then, the experiment can be run using `python instabrain.py -s bert -c cool_neurofeedback_study`. Add the debugging or logging booleans (e.g. `python instabrain.py -s subjid -c myconfig -d -l`) to enable those functionalities.
 
 Some day, a Docker implementation will be provided. This will ease the AFNI/FSL requirements by automatically including them in the Docker image. You will have to create your own `ref` and `config` folders wherever you like on your host machine, including the data of your participants and studies. Then, you will provide these folders, as well as your subject ID and study name to a custom `instabrain.sh` script, which will run instabrain as normal.

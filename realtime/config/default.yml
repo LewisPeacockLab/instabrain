@@ -2,10 +2,6 @@
 # configuration file for instabrain backend #
 #############################################
 
-# debugging
-debug-bool: True
-logging-bool: False
-
 # file processing
 watch-dir: /home/realtime/10GbDump
 recon-script: /home/realtime/remoteServer/ejaMBRemoteICE-R007/runLocal_CPU_copy.sh
@@ -15,25 +11,12 @@ archive-data: True
 post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
 
 # imaging params
-tr-time: 2.0 #seconds
 baseline-trs: 10
+feedback-trs: 150
 
-# feedback type (continuous or intermittent)
-feedback-type: intermittent # continuous
+# data processing
 moving-avg-trs: 3
-
-# intermittent feedback params
-trials-per-run: 15
-cue-trs: 3
-wait-trs: 4
-feedback-trs: 1
-iti-trs: 2
-
-# continuous feedback params
-feedback-trs-per-run: 150
+mc-mode: afni # or fsl
 
 # MRI sequence
 multiband: True
-
-# motion correction
-mc-mode: afni # or fsl
