@@ -159,7 +159,7 @@ def start_remote_recon(CONFIG):
     subprocess.Popen(RECON_SCRIPT, shell=True)
 
 if __name__ == "__main__":
-    # load subject ID from args
+    # load initialization parameters from args
     import argparse
     parser = argparse.ArgumentParser(description='Function arguments')
     parser.add_argument('-s','--subjectid', help='Subject ID',default='demo')
