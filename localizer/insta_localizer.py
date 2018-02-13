@@ -9,6 +9,8 @@ from mvpa2.mappers.fx import mean_group_sample
 from mvpa2.measures.base import CrossValidation
 from mvpa2.generators.partition import NFoldPartitioner
 from mvpa2.clfs.smlr import SMLR
+from mvpa2.datasets.eventrelated import find_events
+from mvpa2.datasets.eventrelated import fit_event_hrf_model
 
 class InstaLocalizer(object):
     def __init__(self, subject_id):
@@ -75,6 +77,41 @@ class InstaLocalizer(object):
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
+
+    def extract_betas(self, roi_name=None, hemi='rh',
+            onset_offset_trs=0, duration_offset_trs=0,
+            betas_over='chunks'):
+        condition_attr = ('targets',betas_over)
+        datasets = []
+        self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
+        self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
+        self.trial_regressor = np.tile(range(int(self.trials_per_run)),(self.trs_per_trial,1)).flatten('F')
+        if roi_name == None:
+            mask = None
+        else:
+            mask = self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii'
+        for run in range(self.num_runs):
+            run_dataset = fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
+                            mask=mask,
+                            targets=self.tr_targets[self.tr_chunks==run],
+                            chunks=self.tr_chunks[self.tr_chunks==run])
+            run_dataset.sa['trials'] = self.trial_regressor
+            poly_detrend(run_dataset, polyord=1, chunks_attr='chunks')
+            zscore(run_dataset, chunks_attr='chunks')
+            run_events = find_events(targets=run_dataset.sa.targets,
+                chunks=run_dataset.sa.chunks,
+                trials=run_dataset.sa['trials'])
+            for event in run_events:
+                event['onset'] = onset_offset_trs+event['onset']*self.tr
+                event['duration'] = (event['duration']+duration_offset_trs)*self.tr
+            run_event_dataset = fit_event_hrf_model(run_dataset,
+                run_events,
+                time_attr='time_coords',
+                condition_attr=condition_attr)
+            datasets.append(run_event_dataset)
+        self.fmri_data = vstack(datasets, a=0)
+        if betas_over == 'trials':
+            self.fmri_data.sa['chunks'] = np.tile(range(self.num_runs),(self.trials_per_run,1)).flatten('F')
 
     def train_classifier(self):
         self.clf.train(self.fmri_data)
