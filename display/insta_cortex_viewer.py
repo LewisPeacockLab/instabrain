@@ -1,10 +1,13 @@
 import cortex
+import numpy as np
 subj_id = 'fp001'
-functional_dir = '/Users/eo5629/pycortex/filestore/db/'+subj_id+'/functionals'
+# functional_dir = '/Users/eo5629/pycortex/filestore/db/'+subj_id+'/functionals'
+functional_dir = '/Users/efun/pycortex/filestore/db/'+subj_id+'/functionals'
 
 rfi_img = cortex.Volume(functional_dir+'/rfi.nii', subject=subj_id, xfmname='rai2rfi')
 volume = rfi_img
-cortex.webshow(data=volume, template='insta_diagnostics.html') #, recache=True)
+
+# cortex.webshow(data=volume, template='insta_diagnostics.html') #, recache=True)
 
 # vol_ex_1 = cortex.Volume(functional_dir+'/vol1.nii', subject=subj_id, xfmname='rai2rfi')
 # vol_ex_2 = cortex.Volume(functional_dir+'/vol2.nii', subject=subj_id, xfmname='rai2rfi')
@@ -20,17 +23,18 @@ cortex.webshow(data=volume, template='insta_diagnostics.html') #, recache=True)
 
 # Demo class for realtime updates
 
-class PyCortexViewer(Stimulus):
+class InstaCortexViewer(object):
     bufferlen = 50
 
-    def __init__(self, subject, xfm_name, mask_type='thick', vmin=-1., vmax=1.,
-                 **kwargs):
-        super(PyCortexViewer, self).__init__()
+    def __init__(self, subject, xfm_name, html_template='simple.html',
+                 mask_type='thick', vmin=-1., vmax=1., **kwargs):
+        super(InstaCortexViewer, self).__init__()
         npts = cortex.db.get_mask(subject, xfm_name, mask_type).sum()
 
         data = np.zeros((self.bufferlen, npts), 'float32')
         vol = cortex.Volume(data, subject, xfm_name, vmin=vmin, vmax=vmax)
-        view = cortex.webshow(vol, autoclose=False)
+        view = cortex.webshow(vol, autoclose=False, template=html_template, title='instabrain')
+        # view = cortex.webshow(vol, autoclose=False, title='instabrain')
 
         self.subject = subject
         self.xfm_name = xfm_name
@@ -75,6 +79,11 @@ class PyCortexViewer(Stimulus):
 
     def stop(self):
         self.view.playpause('pause')
+
+if __name__ == '__main__':
+    viewer = InstaCortexViewer(subj_id, 'rai2rfi', port=4567)
+    print 'Instabrain started!'
+    while True: pass
 
 ###########################################
 # converting from freesurfer to pycortex: #
