@@ -11,12 +11,12 @@ archive-data: True
 post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
 
 # imaging params
-baseline-trs: 5 #10
-feedback-trs: 155 #150
+baseline-trs: 20
+feedback-trs: 150
 
 # data processing
 moving-avg-trs: 3
-mc-mode: fsl # or afni
+mc-mode: afni # or fsl
 
 # MRI sequence
 multiband: True

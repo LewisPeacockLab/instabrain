@@ -12,9 +12,9 @@ from mvpa2.clfs.smlr import SMLR
 from mvpa2.datasets.eventrelated import find_events
 from mvpa2.datasets.eventrelated import fit_event_hrf_model
 
-class InstaLocalizer(object):
+class FingfindLocalizer(object):
     def __init__(self, subject_id):
-        with open('localizer_config.yml') as f:
+        with open('fingfind_localizer_config.yml') as f:
             self.CONFIG = yaml.load(f)
         
         # directories
@@ -32,8 +32,9 @@ class InstaLocalizer(object):
         self.num_runs = self.CONFIG['NUM_RUNS']
         self.trs_per_trial = self.CONFIG['TRS_PER_TRIAL']
         self.trial_feature_trs = self.CONFIG['TRIAL_FEATURE_TRS']
-        self.trials_per_run = self.vols_per_run/self.trs_per_trial
         self.presses_per_trial = self.CONFIG['PRESSES_PER_TRIAL']
+        self.zscore_trs = self.CONFIG['ZSCORE_TRS']
+        self.trials_per_run = (self.vols_per_run-self.zscore_trs)/self.trs_per_trial
 
         # labels
         self.behav_data = np.loadtxt(self.ref_dir+'/ft-data.txt',delimiter=',',skiprows=1)
@@ -51,7 +52,7 @@ class InstaLocalizer(object):
         self.generate_motor_masks()
         self.motion_correct()
 
-    def extract_features(self, roi_name=None, hemi='rh'):
+    def extract_features(self, roi_name=None, hemi='lh', zs_all=True, detrend=True):
         datasets = []
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
         self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
@@ -60,20 +61,35 @@ class InstaLocalizer(object):
         else:
             mask = self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii'
         for run in range(self.num_runs):
+            run_tr_targets = np.append(-1*np.ones(self.zscore_trs), self.tr_targets[self.tr_chunks==run])
+            # run_tr_targets = np.append(-1*np.ones(self.zscore_trs/4), self.tr_targets[self.tr_chunks==run])
+            # run_tr_targets = np.append(-2*np.ones(3*self.zscore_trs/4), run_tr_targets)
+            run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
             datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
                 mask=mask,
-                targets=self.tr_targets[self.tr_chunks==run],
-                chunks=self.tr_chunks[self.tr_chunks==run]))
+                targets=run_tr_targets,
+                chunks=run_tr_chunks))
         self.fmri_data = vstack(datasets, a=0)
 
         self.active_trs = np.zeros(self.trs_per_trial)
         self.active_trs[self.trial_feature_trs[0]-1:self.trial_feature_trs[1]] = 1
-        self.active_trs = np.tile(self.active_trs,int(self.num_runs*self.trials_per_run))
-        self.trial_regressor = np.tile(range(int(self.num_runs*self.trials_per_run)),(self.trs_per_trial,1)).flatten('F')
+        self.active_trs = np.tile(self.active_trs,int(self.trials_per_run))
+        self.active_trs = np.append(np.zeros(self.zscore_trs), self.active_trs)
+        self.active_trs = np.tile(self.active_trs,int(self.num_runs))
+        self.trial_regressor = -1*np.ones(self.vols_per_run*self.num_runs)
+        for run in range(self.num_runs):
+            begin_trial = int(run*self.trials_per_run)
+            end_trial = int((run+1)*self.trials_per_run)
+            self.trial_regressor[(run*self.vols_per_run+self.zscore_trs):((run+1)*self.vols_per_run)] = (
+                np.tile(range(begin_trial,end_trial),(self.trs_per_trial,1)).flatten('F'))
         self.fmri_data.sa['active_trs'] = self.active_trs
         self.fmri_data.sa['trial_regressor'] = self.trial_regressor
-        poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
-        zscore(self.fmri_data, chunks_attr='chunks')
+        if detrend:
+            poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
+        if zs_all:
+            zscore(self.fmri_data, chunks_attr='chunks')
+        else:
+            zscore(self.fmri_data, chunks_attr='chunks', param_est=('targets',[-1]))
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
@@ -193,7 +209,8 @@ class InstaLocalizer(object):
             +hemi+'.'+roi_name+'_exvivo.label --temp '+self.rfi_img
             +' --reg '+self.reg_mat+' --proj frac 0 1 .1 --fillthresh .3'
             +' --hemi '+hemi+' --o '+self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii')
-        os.system(cmd)
+        print cmd
+        # os.system(cmd)
 
     def combine_hemis(self, roi_name):
         rh_mask = self.ref_dir+'/mask_rh_'+roi_name+'.nii'

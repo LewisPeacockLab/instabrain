@@ -3,9 +3,10 @@
 ###############################
 
 SUBJECT_DIR: /Users/eo5629/fmri/seqlearn
-NUM_RUNS: 6 #10
-VOLS_PER_RUN: 150
+NUM_RUNS: 8
+VOLS_PER_RUN: 180
 TR: 2.0
-TRS_PER_TRIAL: 5
-TRIAL_FEATURE_TRS: [3,5] #from a to b
+ZSCORE_TRS: 20
+TRS_PER_TRIAL: 8
+TRIAL_FEATURE_TRS: [4,6] #from a to b
 PRESSES_PER_TRIAL: 10

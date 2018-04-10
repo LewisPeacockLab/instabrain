@@ -26,7 +26,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.baseline_trs = config['baseline-trs']
         self.feedback_trs = config['feedback-trs']
         self.run_trs = self.baseline_trs+self.feedback_trs
-        self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs)
+        self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs+self.baseline_trs)
 
         # data processing
         self.moving_avg_trs = config['moving-avg-trs']

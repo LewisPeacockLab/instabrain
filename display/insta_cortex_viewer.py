@@ -2,7 +2,9 @@ import cortex
 import numpy as np
 import nibabel as nib
 import time
-subj_id = 'fp001'
+# subj_id = 'fp001'
+# subj_id = 's002'
+subj_id = 'ft002'
 functional_dir = '/Users/eo5629/pycortex/filestore/db/'+subj_id+'/functionals'
 # functional_dir = '/Users/efun/pycortex/filestore/db/'+subj_id+'/functionals'
 
