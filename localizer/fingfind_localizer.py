@@ -52,7 +52,7 @@ class FingfindLocalizer(object):
         self.generate_motor_masks()
         self.motion_correct()
 
-    def extract_features(self, roi_name=None, hemi='lh', zs_all=True, detrend=True):
+    def extract_features(self, roi_name=None, hemi='lh', zs_proportion=1, zs_all=True, detrend=True):
         datasets = []
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
         self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
@@ -61,9 +61,8 @@ class FingfindLocalizer(object):
         else:
             mask = self.ref_dir+'/mask_'+hemi+'_'+roi_name+'.nii'
         for run in range(self.num_runs):
-            run_tr_targets = np.append(-1*np.ones(self.zscore_trs), self.tr_targets[self.tr_chunks==run])
-            # run_tr_targets = np.append(-1*np.ones(self.zscore_trs/4), self.tr_targets[self.tr_chunks==run])
-            # run_tr_targets = np.append(-2*np.ones(3*self.zscore_trs/4), run_tr_targets)
+            run_tr_targets = np.append(-2*np.ones(int((1-zs_proportion)*self.zscore_trs)), self.tr_targets[self.tr_chunks==run])
+            run_tr_targets = np.append(-1*np.ones(int(zs_proportion*self.zscore_trs)), run_tr_targets)
             run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
             datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
                 mask=mask,
@@ -93,6 +92,13 @@ class FingfindLocalizer(object):
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
+
+    def test_filtering(self, roi_name=None, hemi='lh', zs_proportion=1, zs_all=True, detrend=True):
+        # zs_proportion_array = [.25, .5, .75, 1]
+        # zs_all_array = [False, True]
+        # detrend_array = [True, False]
+        # roi_name_array = [BA6, BA4a, BA4p, BA3]
+        pass
 
     def extract_betas(self, roi_name=None, hemi='rh',
             onset_offset_trs=0, duration_offset_trs=0,
@@ -202,6 +208,19 @@ class FingfindLocalizer(object):
             self.combine_hemis(roi_name)
         gunzip_cmd = 'gunzip '+self.ref_dir+'/*.gz'
         os.system(gunzip_cmd)
+
+    def generate_sensory_masks(self):
+        for hemi in ['lh','rh']:
+            for roi_name in ['ba3a', 'ba3b']:
+                self.generate_mask(roi_name,hemi)
+            a_mask = self.ref_dir+'/mask_'+hemi+'_ba3a.nii'
+            b_mask = self.ref_dir+'/mask_'+hemi+'_ba3b.nii'
+            out_mask = self.ref_dir+'/mask_'+hemi+'_ba3.nii'
+            cmd = 'fslmaths '+a_mask+' -add '+b_mask+' -bin '+out_mask
+            os.system(cmd)
+            gunzip_cmd = 'gunzip '+self.ref_dir+'/*.gz'
+            os.system(gunzip_cmd)
+        self.combine_hemis('ba3')
 
     def generate_mask(self, roi_name, hemi):
         cmd = ('mri_label2vol --subject '+self.fs_subject_id
