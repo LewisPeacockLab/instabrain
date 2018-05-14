@@ -24,9 +24,25 @@ class InstaWatcher(PatternMatchingEventHandler):
         # timings
         self.run_count = 0
         self.baseline_trs = config['baseline-trs']
-        self.feedback_trs = config['feedback-trs']
-        self.run_trs = self.baseline_trs+self.feedback_trs
-        self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs+self.baseline_trs)
+        try:
+            feedback_mode = config['mc-mode'].lower()
+        except:
+            feedback_mode = 'continuous'
+        if feedback_mode == 'continuous':
+            self.feedback_trs = config['feedback-trs']
+            self.run_trs = self.baseline_trs+self.feedback_trs
+            self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs+self.baseline_trs)
+        elif self.feedback_mode == 'intermittent':
+            self.trials = config['trials-per-run']
+            self.cue_trs = config['cue-trs']
+            self.wait_trs = config['wait-trs']
+            self.feedback_trs = config['feedback-trs']
+            self.iti_trs = config['iti-trs']
+            self.trial_trs = self.cue_trs+self.wait_trs+self.feedback_trs+self.iti_trs
+            self.run_trs = self.baseline_trs+self.trials*self.trial_trs
+            self.trs_to_score_calc = self.cue_trs+self.wait_trs-1
+            self.feedback_calc_trs = (self.baseline_trs+self.trs_to_score_calc
+                                      +np.arange(self.trials)*self.trial_trs-1)
 
         # data processing
         self.moving_avg_trs = config['moving-avg-trs']
@@ -69,7 +85,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.raw_img_array = np.zeros((self.slice_dims[0],self.slice_dims[1],
             self.num_slices,self.run_trs),dtype=np.uint16)
         self.raw_roi_array = np.zeros((self.num_roi_voxels,self.run_trs))
-        self.tr_count = -1
+        self.feedback_count = -1
         self.zscore_calc = False
         self.voxel_sigmas = np.zeros(self.num_roi_voxels)
 
@@ -94,7 +110,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         if rep == (self.baseline_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
         if rep in self.feedback_calc_trs:
-            self.tr_count += 1
+            self.feedback_count += 1
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
@@ -106,7 +122,7 @@ class InstaWatcher(PatternMatchingEventHandler):
     def send_clf_outputs(self, out_data):
         payload = {"clf_outs": list(out_data[:-1]),
             "target_class": out_data[-1],
-            "tr_num": self.tr_count}
+            "feedback_num": self.feedback_count}
         status_code = 404
         while status_code != 200:
             post_status = r.post(self.post_url, json=payload)
