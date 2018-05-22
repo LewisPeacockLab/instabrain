@@ -32,7 +32,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.feedback_trs = config['feedback-trs']
             self.run_trs = self.baseline_trs+self.feedback_trs
             self.feedback_calc_trs = np.arange(self.baseline_trs,self.feedback_trs+self.baseline_trs)
-        elif self.feedback_mode == 'intermittent':
+        elif feedback_mode == 'intermittent':
             self.trials = config['trials-per-run']
             self.cue_trs = config['cue-trs']
             self.wait_trs = config['wait-trs']

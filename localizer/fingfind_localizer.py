@@ -63,8 +63,7 @@ class FingfindLocalizer(object):
         self.generate_sensorimotor_masks()
         self.motion_correct()
 
-    def train_and_save_multi_session_clf(self, roi_name='ba3ba4', hemi='lh', zs_proportion=1, zs_all=False, detrend=True):
-        # roi_name = 'm1s1'
+    def train_and_save_multi_session_clf(self, roi_name='m1s1', hemi='lh', zs_proportion=1, zs_all=False, detrend=True):
         self.extract_multi_session_features(roi_name=roi_name, hemi=hemi,
             zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
         self.train_classifier()
@@ -485,17 +484,17 @@ class FingfindLocalizer(object):
         cmd_s1 = 'fslmaths '+self.ref_dir+'/mask_'+hemi+'_multi_roi -thr 2.5 -bin '+self.ref_dir+'/mask_'+hemi+'_s1'
         os.system(cmd_s1)
 
-        cmd_m1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1- -sub '
-            +self.ref_dir+'/mask_'+hemi+'_s1+ -bin '+self.ref_dir+'/mask_'+hemi+'_m1')
+        cmd_m1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1 -sub '
+            +self.ref_dir+'/mask_'+hemi+'_s1+ -bin '+self.ref_dir+'/mask_'+hemi+'_m1-')
         os.system(cmd_m1_minus)
-        cmd_m1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1-- -sub '
-            +self.ref_dir+'/mask_'+hemi+'_s1++ -bin '+self.ref_dir+'/mask_'+hemi+'_m1')
+        cmd_m1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1 -sub '
+            +self.ref_dir+'/mask_'+hemi+'_s1++ -bin '+self.ref_dir+'/mask_'+hemi+'_m1--')
         os.system(cmd_m1_minusminus)
-        cmd_s1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1- -sub '
-            +self.ref_dir+'/mask_'+hemi+'_m1+ -bin '+self.ref_dir+'/mask_'+hemi+'_s1')
+        cmd_s1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1 -sub '
+            +self.ref_dir+'/mask_'+hemi+'_m1+ -bin '+self.ref_dir+'/mask_'+hemi+'_s1-')
         os.system(cmd_s1_minus)
-        cmd_s1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1-- -sub '
-            +self.ref_dir+'/mask_'+hemi+'_m1++ -bin '+self.ref_dir+'/mask_'+hemi+'_s1')
+        cmd_s1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1 -sub '
+            +self.ref_dir+'/mask_'+hemi+'_m1++ -bin '+self.ref_dir+'/mask_'+hemi+'_s1--')
         os.system(cmd_s1_minusminus)
         gunzip_cmd = 'gunzip '+self.ref_dir+'/*.gz'
         os.system(gunzip_cmd)
