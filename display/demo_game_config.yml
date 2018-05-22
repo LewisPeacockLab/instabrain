@@ -1,0 +1,28 @@
+################################################
+# continuous feedback demo display config file #
+################################################
+
+# server params
+shutdown-url: 'http://127.0.0.1:5000/shutdown'
+fake-insta: False #True
+
+# imaging params
+runs: 12
+tr-time: 2.0 #seconds
+feedback-offset-time: 1.0 #seconds
+zscore-trs: 5 #10
+feedback-trs: 20 #155
+
+# classifier params
+num-classes: 4
+
+# display params
+fullscreen: False #True
+feedback-update-trs: 0.25 #<feedback-trs
+fixation-diameter: 1.5 #degrees
+min-feedback-diameter: 2 #degrees
+max-feedback-diameter: 10 #degrees
+feedback-indicator-diameter: 0.3 #degrees
+
+# reward
+max-experiment-reward: 30 # dollars

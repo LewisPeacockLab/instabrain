@@ -25,7 +25,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.run_count = 0
         self.baseline_trs = config['baseline-trs']
         try:
-            feedback_mode = config['mc-mode'].lower()
+            feedback_mode = config['feedback-mode'].lower()
         except:
             feedback_mode = 'continuous'
         if feedback_mode == 'continuous':

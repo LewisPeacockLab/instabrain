@@ -2,30 +2,6 @@ import cortex
 import numpy as np
 import nibabel as nib
 import time
-# subj_id = 'fp001'
-# subj_id = 's002'
-subj_id = 'ft002'
-functional_dir = '/Users/eo5629/pycortex/filestore/db/'+subj_id+'/functionals'
-# functional_dir = '/Users/efun/pycortex/filestore/db/'+subj_id+'/functionals'
-
-rfi_img = cortex.Volume(functional_dir+'/rfi.nii', subject=subj_id, xfmname='rai2rfi')
-volume = rfi_img
-
-# cortex.webshow(data=volume, template='insta_diagnostics.html') #, recache=True)
-
-# vol_ex_1 = cortex.Volume(functional_dir+'/vol1.nii', subject=subj_id, xfmname='rai2rfi')
-# vol_ex_2 = cortex.Volume(functional_dir+'/vol2.nii', subject=subj_id, xfmname='rai2rfi')
-# # for multi volumes, currently have to click to refresh UI
-# volumes = {
-#     'Reference Functional': rfi_img,
-#     'Vol 1': vol_ex_1,
-#     'Vol 2': vol_ex_2}
-# cortex.webshow(data=volumes, template='insta_diagnostics.html', title='instabrain')
-
-# a port number will then be output, for example "Started server on port 39140"
-# the viewer can then be accessed in a web browser, in this case at "localhost:39140"
-
-# Demo class for realtime updates
 
 class InstaCortexViewer(object):
     # bufferlen = 50
@@ -43,6 +19,7 @@ class InstaCortexViewer(object):
         self.subject = subject
         self.xfm_name = xfm_name
         self.mask_type = mask_type
+        self.functional_dir = '/Users/eo5629/fmri/'+self.subject+'/ref'
 
         self.view = view
         self.active = True
@@ -58,7 +35,7 @@ class InstaCortexViewer(object):
         self.view.setFrame(1)
 
     def load_nib_to_mos(self, img_name):
-        img_dir = functional_dir+'/'+img_name+'.nii'
+        img_dir = self.functional_dir+'/'+img_name+'.nii'
         # data = np.array(nib.load(img_dir).get_data().swapaxes(0,2),'float32')+7500*np.random.random((36,100,100))
         data = np.array(nib.load(img_dir).get_data().swapaxes(0,2),'float32')
         vol = cortex.Volume(data, self.subject, self.xfm_name)
@@ -105,21 +82,8 @@ class InstaCortexViewer(object):
         self.view.playpause('pause')
 
 if __name__ == '__main__':
-    viewer = InstaCortexViewer(subj_id, 'rai2rfi') #, port=4567)
+    subj_id = 'ff001'
+    xfm_name = 'rai2rfi'
+    viewer = InstaCortexViewer(subj_id, xfm_name) #, port=4567)
     print 'Instabrain started!'
     while True: pass
-
-###########################################
-# converting from freesurfer to pycortex: #
-###########################################
-
-# cortex.freesurfer.import_subj('fp001fs', sname='fp001')
-# cortex.align.manual('fp001', 'testreg',reference='rfi.nii')
-# cortex.align.automatic('fp001', 'testreg',reference='rfi.nii')
-# tkregister2 --mov functionals/rfi.nii --targ anatomicals/raw.nii.gz --reg transforms/rai2rfi.dat --fslregout transforms/rai2rfi.mat --noedit
-# from cortex.xfm import Transform; import numpy as np
-# x = np.loadtxt('transforms/rai2rfi.mat')
-#        # Pass transform as FROM epi TO anat; transform will be inverted
-#        # back to anat-to-epi, standard direction for pycortex internal
-#        # storage by from_fsl
-# Transform.from_fsl(x, 'functionals/rfi.nii', 'anatomicals/raw.nii.gz').save('fp001', 'rai2rfi', 'coord')

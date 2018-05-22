@@ -15,7 +15,7 @@ baseline-trs: 20
 
 # data processing
 moving-avg-trs: 3
-mc-mode: afni # or fsl
+mc-mode: fsl # afni
 
 # MRI sequence
 multiband: True

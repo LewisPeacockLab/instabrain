@@ -10,7 +10,7 @@ def start_server(target_class, feedback_calc_trial, clf_outs):
         data = request.get_json(force=True)
         app.target_class.value = int(data['target_class'])
         app.clf_outs[:] = data['clf_outs'][:]
-        app.feedback_calc_trial.value = int(data['trial_num'])
+        app.feedback_calc_trial.value = int(data['feedback_num'])
         return 'data_received'
     @app.route('/shutdown', methods=['POST'])
     def shutdown():
