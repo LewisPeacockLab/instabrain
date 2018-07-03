@@ -1,5 +1,5 @@
 import numpy as np
-import yaml,os,glob,pickle
+import yaml,os,glob,pickle,copy
 import subprocess,shlex,copy
 from mvpa2.clfs.smlr import SMLR
 from mvpa2.datasets.mri import fmri_dataset
@@ -10,6 +10,7 @@ from mvpa2.mappers.fx import mean_group_sample
 from mvpa2.measures.base import CrossValidation
 from mvpa2.generators.partition import NFoldPartitioner
 from mvpa2.clfs.smlr import SMLR
+from scipy.signal import detrend
 from mvpa2.datasets.eventrelated import find_events
 from mvpa2.datasets.eventrelated import fit_event_hrf_model
 
@@ -30,7 +31,6 @@ class FingfindLocalizer(object):
         self.base_bold_dir = self.base_dir+'/bold'
         self.bold_dir_sess1 = self.base_bold_dir+'/sess1'
         self.bold_dir_sess2 = self.base_bold_dir+'/sess2'
-        self.bold_dir = self.bold_dir_sess1
 
         # timing
         self.tr = self.CONFIG['TR']
@@ -44,14 +44,19 @@ class FingfindLocalizer(object):
 
         # labels
         self.behav_data_sess1 = np.loadtxt(self.ref_dir+'/ft-data-sess1.txt',delimiter=',',skiprows=1)
-        self.behav_data_sess2 = np.loadtxt(self.ref_dir+'/ft-data-sess2.txt',delimiter=',',skiprows=1)
+        try:
+            self.behav_data_sess2 = np.loadtxt(self.ref_dir+'/ft-data-sess2.txt',delimiter=',',skiprows=1)
+        except:
+            self.behav_data_sess2 = self.behav_data_sess1
         self.trial_data_sess1 = self.behav_data_sess1[::self.presses_per_trial,:]
         self.trial_data_sess2 = self.behav_data_sess2[::self.presses_per_trial,:]
         self.trial_targets_sess1 = self.trial_data_sess1[:,0]
         self.trial_targets_sess2 = self.trial_data_sess2[:,0]
-        self.trial_targets = self.trial_targets_sess1
         self.trial_chunks = self.trial_data_sess1[:,-1]
-        self.n_class = np.unique(self.trial_targets).size
+        self.n_class = np.unique(self.trial_targets_sess1).size
+
+        # select session
+        self.select_session(1)
 
         # classifier
         self.clf = SMLR()
@@ -59,18 +64,20 @@ class FingfindLocalizer(object):
     def preprocessing(self):
         self.create_rfi()
         self.register_2_rfi()
-        self.generate_motor_masks()
         self.generate_sensorimotor_masks()
+        self.select_session(1)
         self.motion_correct()
+        self.select_session(2)
+        self.motion_correct()
+        self.select_session(1)
 
-    def train_and_save_multi_session_clf(self, roi_name='m1s1', hemi='lh', zs_proportion=1, zs_all=False, detrend=True):
-        self.extract_multi_session_features(roi_name=roi_name, hemi=hemi,
-            zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-        self.train_classifier()
-        self.save_classifier()
-
-    def extract_features(self, roi_name=None, hemi='lh', zs_proportion=1, zs_all=True, detrend=True):
+    def extract_features(self, roi_name=None, hemi='lh', zs_type='all', detrend='all',
+            zs_proportion=1, trial_feature_trs='from_config'):
         datasets = []
+        if trial_feature_trs == 'from_config':
+            self.trial_feature_trs = self.CONFIG['TRIAL_FEATURE_TRS']
+        else:
+            self.trial_feature_trs = trial_feature_trs
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
         self.tr_chunks = np.tile(self.trial_chunks,(self.trs_per_trial,1)).flatten('F')
         if roi_name == None:
@@ -81,10 +88,23 @@ class FingfindLocalizer(object):
             run_tr_targets = np.append(-2*np.ones(int((1-zs_proportion)*self.zscore_trs)), self.tr_targets[self.tr_chunks==run])
             run_tr_targets = np.append(-1*np.ones(int(zs_proportion*self.zscore_trs)), run_tr_targets)
             run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
-            datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
+            run_dataset = fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
                 mask=mask,
                 targets=run_tr_targets,
-                chunks=run_tr_chunks))
+                chunks=run_tr_chunks)
+            if detrend == 'realtime':
+                run_dataset = self.realtime_detrend(run_dataset)
+            elif detrend == 'all':
+                poly_detrend(run_dataset, polyord=1)
+            if zs_type == 'baseline':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',[-1]))
+            elif zs_type == 'realtime':
+                run_dataset = self.realtime_zscore(run_dataset)
+            elif zs_type == 'active':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',range(self.n_class)))
+            elif zs_type == 'all':
+                zscore(run_dataset, chunks_attr='chunks')
+            datasets.append(run_dataset)
         self.fmri_data = vstack(datasets, a=0)
 
         self.active_trs = np.zeros(self.trs_per_trial)
@@ -100,18 +120,249 @@ class FingfindLocalizer(object):
                 np.tile(range(begin_trial,end_trial),(self.trs_per_trial,1)).flatten('F'))
         self.fmri_data.sa['active_trs'] = self.active_trs
         self.fmri_data.sa['trial_regressor'] = self.trial_regressor
-        if detrend:
-            poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
-        if zs_all:
-            zscore(self.fmri_data, chunks_attr='chunks')
-        else:
-            zscore(self.fmri_data, chunks_attr='chunks', param_est=('targets',[-1]))
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
 
-    def extract_multi_session_features(self, roi_name=None, hemi='lh', zs_proportion=1, zs_all=True, detrend=True):
+    def realtime_detrend(self, run_dataset):
+        run_data = copy.deepcopy(run_dataset.samples)
+        out_data = np.zeros(run_data.shape)
+        out_data[:self.zscore_trs] = detrend(run_data[:self.zscore_trs],0)
+        for tr in range(self.zscore_trs,self.vols_per_run):
+            out_data[tr] = detrend(run_data[:tr+1],0)[-1]
+        run_dataset.samples = out_data
+        return run_dataset
+
+    def realtime_zscore(self, run_dataset):
+        run_data = copy.deepcopy(run_dataset.samples)
+        out_data = np.zeros(run_data.shape)
+        baseline_sigmas = np.sqrt(np.var(run_data[:self.zscore_trs],0))
+        out_data[:self.zscore_trs] = run_data[:self.zscore_trs]/baseline_sigmas
+        for tr in range(self.zscore_trs,self.vols_per_run):
+            tr_sigmas = np.sqrt(np.var(run_data[:tr+1],0))
+            out_data[tr] = (run_data[:tr+1]/tr_sigmas)[-1]
+        run_dataset.samples = out_data
+        return run_dataset
+
+    def select_session(self, session=1):
+        if session == 1:
+            self.trial_targets = self.trial_targets_sess1
+            self.bold_dir = self.bold_dir_sess1
+        elif session == 2:
+            self.trial_targets = self.trial_targets_sess2
+            self.bold_dir = self.bold_dir_sess2
+        self.session = session
+
+    def fingfind_realtime_limitations_within_session(self, rois=['m1','s1'], sessions=[1,2]):
+        # self.test_training_data(rois,sessions)
+        self.test_time_points(rois,sessions)
+        # self.test_between_session()
+        # self.test_zscore(rois,sessions)
+        # self.test_detrend(rois,sessions)
+
+    def fingfind_compare_within_to_between(self, rois=['m1--','m1-','m1','m1s1','s1','s1-','s1--']):
+        sessions = [1,2]
+        time_points = [[6,8]]
+        self.test_training_data(rois,sessions,leave_out_runs=range(1,2))
+        self.test_between_session(rois)
+
+    def test_training_data(self, rois, sessions, leave_out_runs=range(1,8)):
+        zs_type = 'baseline'
+        zs_proportion = 1
+        detrend = 'realtime'
+        for session in sessions:
+            self.select_session(session)
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(leave_out_runs),self.num_runs)
+                self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                    zs_proportion=zs_proportion, trial_feature_trs='from_config')
+                for idx, leave_out_run in enumerate(leave_out_runs):
+                    self.cross_validate(leave_out_runs=leave_out_run)
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type,'none',
+                        leave_out_run,detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,session]
+                    self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(session)+'_training_runs.csv')
+
+    def test_time_points(self, rois, sessions, time_windows=[[1,3],[2,4],[3,5],[4,6],[5,7],[6,8]]):
+        zs_type = 'baseline'
+        zs_proportion = 1
+        detrend = 'realtime'
+        leave_out_run = 1
+        for session in sessions:
+            self.select_session(session)
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(time_windows),self.num_runs)
+                for idx, time_window in enumerate(time_windows):
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs=time_window)
+                    self.cross_validate()
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type,'none',
+                        leave_out_run,detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,session]
+                    self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(session)+'_time_points.csv')
+
+    def test_zscore(self, rois, sessions, zs_proportions=[.25,.5,.75,1,1,1]):
+        zs_types = ['baseline','baseline','baseline','baseline','baseline','baseline',
+            'baseline','baseline','baseline','baseline','baseline','none','realtime','all']
+        zs_proportions = [0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.75,1,0,1,1]
+        detrend = 'realtime'
+        leave_out_run = 1
+        for session in sessions:
+            self.select_session(session)
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(zs_proportions),self.num_runs)
+                for idx, zs_proportion in enumerate(zs_proportions):
+                    zs_type = zs_types[idx]
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs='from_config')
+                    self.cross_validate()
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type,'none',
+                        leave_out_run,detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,session]
+                    self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(session)+'_zscore.csv')
+
+    def test_detrend(self, rois, sessions, detrends = ['none','realtime','all']):
+        zs_type = 'baseline'
+        zs_proportion = 1
+        leave_out_run = 1
+        for session in sessions:
+            self.select_session(session)
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(detrends),self.num_runs)
+                for idx, detrend in enumerate(detrends):
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs='from_config')
+                    self.cross_validate()
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type,'none',
+                        leave_out_run,detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,session]
+                    self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(session)+'_detrend.csv')
+
+    def create_empty_cv_df(self, conditions_per_cv, cv_folds):
+        import pandas as pd
+        return pd.DataFrame(
+            columns=['clf_acc','roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                'zs_proportion','trial_feature_trs','subj','session'],
+            index=np.repeat(range(conditions_per_cv),cv_folds))
+
+    def test_between_session(self, rois=['m1','s1']):
+        # zs_types_sess1 = ['none','baseline','realtime','active','all','baseline','realtime','active','all']
+        # zs_types_sess2 = ['none','baseline','baseline','baseline','baseline','realtime','realtime','realtime','realtime']
+        # zs_proportions = [1,1,1,1,1,1,1,1,1]
+        # zs_types_sess1 = ['baseline']
+        # zs_types_sess2 = ['baseline']
+        # zs_proportions = [1]
+        zs_types = ['baseline','baseline','baseline','baseline','baseline','baseline','baseline','baseline','baseline',
+            'baseline','baseline','baseline','baseline','none','realtime','all']
+        zs_proportions = [0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.75,1,1,1,0,1,1]
+        zs_types_sess1 = zs_types
+        zs_types_sess2 = zs_types
+        zs_proportions_sess1 = zs_proportions
+        zs_proportions_sess2 = zs_proportions
+        detrends = ['realtime','realtime','realtime','realtime','realtime','realtime','realtime','realtime','realtime',
+            'realtime','realtime','none','all','realtime','realtime','realtime']
+        leave_out_run = 0
+        for sessions in [[1,2],[2,1]]:
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(zs_types_sess1),1)
+                for idx, zs_type_sess1 in enumerate(zs_types_sess1):
+                    zs_type_sess2 = zs_types_sess2[idx]
+                    self.select_session(sessions[0])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type_sess1, detrend=detrends[idx],
+                        zs_proportion=zs_proportions_sess1[idx], trial_feature_trs='from_config')
+                    self.train_classifier()
+                    self.select_session(sessions[1])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type_sess2, detrend=detrends[idx],
+                        zs_proportion=zs_proportions_sess2[idx], trial_feature_trs='from_config')
+                    predictions = self.clf.predict(self.fmri_data)
+                    cross_sess_accuracy = np.mean(predictions==self.fmri_data.sa.targets)
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type_sess1,zs_type_sess2,
+                        leave_out_run,detrends[idx],zs_proportions_sess1[idx],str(self.trial_feature_trs),self.subject_id,sessions[0]]
+                    self.df.loc[idx,'clf_acc']=cross_sess_accuracy
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(sessions[0])+'_between_session.csv')
+
+    def fingfind_roi_corrs(self, rois=['m1--','m1-','m1','m1s1','s1','s1-','s1--']):
+        zs_types_sess1 = ['baseline']
+        zs_types_sess2 = ['baseline']
+        # rois = ['m1','s1']
+        # zs_types_sess1 = ['baseline','active','all']
+        # zs_types_sess2 = ['baseline','baseline','baseline']
+        zs_proportion = 1
+        detrend = 'realtime'
+        conditions = len(zs_types_sess1)
+        for sessions in [[1,2],[2,1]]:
+            for roi in rois:
+                self.df = self.create_empty_clf_out_df(conditions=conditions,trials=self.num_runs*self.trials_per_run)
+                for idx in range(conditions):
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_types_sess1[idx],zs_types_sess2[idx],
+                        detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,sessions[0]]
+                    self.select_session(sessions[0])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_types_sess1[idx], detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs='from_config')
+                    self.train_classifier()
+                    self.select_session(sessions[1])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_types_sess2[idx], detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs='from_config')
+                    predictions = self.clf.predict(self.fmri_data)
+                    self.df.loc[idx,'target'] = self.fmri_data.sa.targets
+                    self.df.loc[idx,'clf_out_0'] = self.clf.ca.estimates[:,0]
+                    self.df.loc[idx,'clf_out_1'] = self.clf.ca.estimates[:,1]
+                    self.df.loc[idx,'clf_out_2'] = self.clf.ca.estimates[:,2]
+                    self.df.loc[idx,'clf_out_3'] = self.clf.ca.estimates[:,3]
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(sessions[0])+'_clf_out.csv')
+
+    def test_time_points_between_session(self, rois=['m1','s1'], time_windows=[[1,3],[2,4],[3,5],[4,6],[5,7],[6,8]]):
+        zs_type = 'baseline'
+        zs_proportion = 1
+        detrend = 'realtime'
+        leave_out_run = 0
+        for sessions in [[1,2],[2,1]]:
+            for roi in rois:
+                self.df = self.create_empty_cv_df(len(time_windows),1)
+                for idx, time_window in enumerate(time_windows):
+                    self.select_session(sessions[0])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs=time_windows[idx])
+                    self.train_classifier()
+                    self.select_session(sessions[1])
+                    self.extract_features(roi_name=roi, hemi='lh', zs_type=zs_type, detrend=detrend,
+                        zs_proportion=zs_proportion, trial_feature_trs=time_windows[idx])
+                    predictions = self.clf.predict(self.fmri_data)
+                    cross_sess_accuracy = np.mean(predictions==self.fmri_data.sa.targets)
+                    self.df.loc[idx,['roi_name','zs_type','zs_type_2','leave_out_runs','detrend',
+                        'zs_proportion','trial_feature_trs','subj','session']]=[roi,zs_type,zs_type,
+                        leave_out_run,detrend,zs_proportion,str(self.trial_feature_trs),self.subject_id,sessions[0]]
+                    self.df.loc[idx,'clf_acc']=cross_sess_accuracy
+                self.df.to_csv(self.subject_id+'_'+roi+'_sess'+str(sessions[0])+'_between_session_time_points.csv')
+
+    def create_empty_clf_out_df(self, conditions, trials):
+        import pandas as pd
+        return pd.DataFrame(
+            columns=['target','clf_out_0','clf_out_1','clf_out_2','clf_out_3',
+                'roi_name','zs_type','zs_type_2','detrend',
+                'zs_proportion','trial_feature_trs','subj','session'],
+            index=np.repeat(range(conditions),trials))
+
+    def train_and_save_multi_session_clf(self, roi_name='m1s1', hemi='lh', zs_type='baseline', detrend='realtime',
+            zs_proportion=1, trial_feature_trs='from_config'):
+        self.extract_multi_session_features(roi_name=roi_name, hemi=hemi, zs_type=zs_type, detrend=detrend,
+            zs_proportion=zs_proportion, trial_feature_trs=trial_feature_trs)
+        self.train_classifier()
+        self.save_classifier()
+
+    def extract_multi_session_features(self, roi_name='m1s1', hemi='lh', zs_type='baseline', detrend='realtime',
+            zs_proportion=1, trial_feature_trs='from_config'):
         datasets = []
+        if trial_feature_trs == 'from_config':
+            self.trial_feature_trs = self.CONFIG['TRIAL_FEATURE_TRS']
+        else:
+            self.trial_feature_trs = trial_feature_trs
         self.trial_targets = np.concatenate([self.trial_targets_sess1,self.trial_targets_sess2])
         self.trial_chunks = np.concatenate([self.trial_data_sess1[:,-1],self.trial_data_sess1[:,-1]+self.num_runs])
         self.tr_targets = np.tile(self.trial_targets,(self.trs_per_trial,1)).flatten('F')
@@ -126,20 +377,46 @@ class FingfindLocalizer(object):
             run_tr_targets = np.append(-2*np.ones(int((1-zs_proportion)*self.zscore_trs)), self.tr_targets[self.tr_chunks==run])
             run_tr_targets = np.append(-1*np.ones(int(zs_proportion*self.zscore_trs)), run_tr_targets)
             run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
-            datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
+            run_dataset = fmri_dataset(self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii',
                 mask=mask,
                 targets=run_tr_targets,
-                chunks=run_tr_chunks))
+                chunks=run_tr_chunks)
+            if detrend == 'realtime':
+                run_dataset = self.realtime_detrend(run_dataset)
+            elif detrend == 'all':
+                poly_detrend(run_dataset, polyord=1)
+            if zs_type == 'baseline':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',[-1]))
+            elif zs_type == 'realtime':
+                run_dataset = self.realtime_zscore(run_dataset)
+            elif zs_type == 'active':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',range(self.n_class)))
+            elif zs_type == 'all':
+                zscore(run_dataset, chunks_attr='chunks')
+            datasets.append(run_dataset)
 
         self.bold_dir = self.bold_dir_sess2
         for run in range(self.num_runs,2*self.num_runs):
             run_tr_targets = np.append(-2*np.ones(int((1-zs_proportion)*self.zscore_trs)), self.tr_targets[self.tr_chunks==run])
             run_tr_targets = np.append(-1*np.ones(int(zs_proportion*self.zscore_trs)), run_tr_targets)
             run_tr_chunks = np.append(run*np.ones(self.zscore_trs), self.tr_chunks[self.tr_chunks==run])
-            datasets.append(fmri_dataset(self.bold_dir+'/rrun-'+str(run-7).zfill(3)+'.nii',
+            run_dataset = fmri_dataset(self.bold_dir+'/rrun-'+str(run-7).zfill(3)+'.nii',
                 mask=mask,
                 targets=run_tr_targets,
-                chunks=run_tr_chunks))
+                chunks=run_tr_chunks)
+            if detrend == 'realtime':
+                run_dataset = self.realtime_detrend(run_dataset)
+            elif detrend == 'all':
+                poly_detrend(run_dataset, polyord=1)
+            if zs_type == 'baseline':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',[-1]))
+            elif zs_type == 'realtime':
+                run_dataset = self.realtime_zscore(run_dataset)
+            elif zs_type == 'active':
+                zscore(run_dataset, chunks_attr='chunks', param_est=('targets',range(self.n_class)))
+            elif zs_type == 'all':
+                zscore(run_dataset, chunks_attr='chunks')
+            datasets.append(run_dataset)
 
         self.fmri_data = vstack(datasets, a=0)
 
@@ -156,231 +433,9 @@ class FingfindLocalizer(object):
                 np.tile(range(begin_trial,end_trial),(self.trs_per_trial,1)).flatten('F'))
         self.fmri_data.sa['active_trs'] = self.active_trs
         self.fmri_data.sa['trial_regressor'] = self.trial_regressor
-        if detrend:
-            poly_detrend(self.fmri_data, polyord=1, chunks_attr='chunks')
-        if zs_all:
-            zscore(self.fmri_data, chunks_attr='chunks')
-        else:
-            zscore(self.fmri_data, chunks_attr='chunks', param_est=('targets',[-1]))
         self.fmri_data = self.fmri_data[self.fmri_data.sa.active_trs==1]
         trial_mapper = mean_group_sample(['targets','trial_regressor'])
         self.fmri_data = self.fmri_data.get_mapped(trial_mapper)
-
-    def fingfind_realtime_limitations(self, rois = ['m1','s1']):
-        self.test_time_points(rois)
-        self.test_zscore(rois)
-        self.test_detrend(rois)
-        self.test_between_session(rois)
-
-    def test_time_points(self, rois, time_windows=[[1,3],[2,4],[3,5],[4,6],[5,7],[6,8]]):
-        zs_all = False
-        zs_proportion = 1
-        detrend = 'realtime'
-
-    def test_zscore(self, rois, zs_proportions=[.25,.5,.75,1]):
-        detrend = 'realtime'
-
-    def test_detrend(self, rois, detrends = ['none','realtime','all']):
-        zs_all = False
-        zs_proportion = 1
-
-    def test_between_session(self, rois):
-        zs_all = False
-        zs_proportion = 1
-        detrend = 'realtime'
-
-    def fingfind_roi_corrs(self, rois = ['m1--','m1-','m1','m1s1','s1','s1-','s1--']):
-        zs_all = False
-        zs_proportion = 1
-        detrend = 'realtime'
-
-    # def test_multi_clf_params(self,lms=[0.01,0.1,1,10,20]):
-    #     # lms = np.round(np.logspace(-2,0,10),2) 
-    #     # lms = np.linspace(.1,.5,9)
-    #     # roi_name = 'ba3ba4'
-    #     roi_name = 'ba4_normal'
-    #     zs1 = True; zs2 = False; detrend = True 
-    #     self.df = self.create_empty_clf_param_df(conditions=len(lms))
-    #     for idx,lm in enumerate(lms):
-    #         self.clf = SMLR(lm=lm)
-    #         self.test_cross_session_decoding(roi_name,zs1,zs2)
-    #         self.df.loc[idx,['zs_all_sess1','zs_all_sess2','detrend','roi_name','lm']]=[zs1,
-    #             zs2,detrend,roi_name,lm]
-    #         self.df.loc[idx,'clf_acc'] = self.cross_sess_accuracy
-    #     self.df.to_csv(self.subject_id+'_clf_params.csv')
-
-    # def test_cross_session_decoding(self, roi_name='ba4', zs_all_sess1=False, zs_all_sess2=False,
-    #     hemi='lh', zs_proportion=1, detrend=True):
-    #     self.bold_dir = self.bold_dir_sess1
-    #     self.trial_targets = self.trial_targets_sess1
-    #     self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all_sess1, detrend=detrend)
-    #     self.train_classifier()
-    #     self.bold_dir = self.bold_dir_sess2
-    #     self.trial_targets = self.trial_targets_sess2
-    #     self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all_sess2, detrend=detrend)
-    #     predictions = self.clf.predict(self.fmri_data)
-    #     self.cross_sess_accuracy = np.mean(predictions==self.fmri_data.sa.targets)
-
-    # def test_cross_session_decoding_params(self, detrend=True):
-    #     # roi_names = ['ba6','ba4','ba3']
-    #     roi_names = ['ba4','ba3']
-    #     for roi_name in roi_names:
-    #         self.df = self.create_empty_cross_session_df(conditions=3)
-    #         for idx, zs in enumerate([[True,True],[True,False],[False,False]]):
-    #             zs1 = zs[0]; zs2 = zs[1]
-    #             self.test_cross_session_decoding(roi_name,zs1,zs2)
-    #             self.df.loc[idx,['zs_all_sess1','zs_all_sess2','detrend','roi_name']]=[zs1,
-    #                 zs2,detrend,roi_name]
-    #             self.df.loc[idx,'clf_acc'] = self.cross_sess_accuracy
-    #         self.df.to_csv(self.subject_id+'_'+roi_name+'_cross_sess.csv')
-
-    # def test_cross_session_roi_params(self, detrend=True):
-    #     roi_names = ['ba4','ba4_normal','ba3ba4','ba3_normal','ba3']
-    #     for roi_name in roi_names:
-    #         self.df = self.create_empty_cross_session_df(conditions=1)
-    #         for idx, zs in enumerate([[True,False]]):
-    #             zs1 = zs[0]; zs2 = zs[1]
-    #             self.test_cross_session_decoding(roi_name,zs1,zs2)
-    #             self.df.loc[idx,['zs_all_sess1','zs_all_sess2','detrend','roi_name']]=[zs1,
-    #                 zs2,detrend,roi_name]
-    #             self.df.loc[idx,'clf_acc'] = self.cross_sess_accuracy
-    #         self.df.to_csv(self.subject_id+'_'+roi_name+'_cross_sess.csv')
-
-    # def test_cross_session_decoder_out(self, detrend=True):
-    #     # roi_names = ['ba6','ba4','ba3']
-    #     roi_names = ['ba4','ba3']
-    #     for roi_name in roi_names:
-    #         self.df = self.create_empty_cross_session_out_df(conditions=3,
-    #             trials=self.num_runs*self.trials_per_run)
-    #         for idx, zs in enumerate([[True,True],[True,False],[False,False]]):
-    #             zs1 = zs[0]; zs2 = zs[1]
-    #             self.test_cross_session_decoding(roi_name,zs1,zs2)
-    #             self.df.loc[idx,['zs_all_sess1','zs_all_sess2','detrend','roi_name']]=[zs1,
-    #                 zs2,detrend,roi_name]
-    #             self.df.loc[idx,'target'] = self.fmri_data.sa.targets
-    #             self.df.loc[idx,'clf_out_0'] = self.clf.ca.estimates[:,0]
-    #             self.df.loc[idx,'clf_out_1'] = self.clf.ca.estimates[:,1]
-    #             self.df.loc[idx,'clf_out_2'] = self.clf.ca.estimates[:,2]
-    #             self.df.loc[idx,'clf_out_3'] = self.clf.ca.estimates[:,3]
-    #         self.df.to_csv(self.subject_id+'_'+roi_name+'_cross_sess_out.csv')
-
-    # def test_all_filtering_multi_roi(self):
-    #     roi_names = ['ba6','ba4','ba3']
-    #     hemi = 'lh'
-    #     for roi_name in roi_names:
-    #         self.test_all_filtering(roi_name,hemi)
-
-    # def test_time_points_multi_roi(self):
-    #     roi_names = ['ba3','ba3_normal','ba3ba4','ba4_normal','ba4']
-    #     hemi = 'lh'
-    #     self.bold_dir = self.bold_dir_sess2
-    #     self.trial_targets = self.trial_targets_sess2
-    #     for roi_name in roi_names:
-    #         # self.test_filtering_time_points(roi_name,hemi,trial_feature_trs_array=[[4,6]],multi_session=True)
-    #         self.test_filtering_time_points(roi_name,hemi,trial_feature_trs_array=[[4,6]])
-
-    # def test_all_filtering(self, roi_name='ba4', hemi='lh'):
-    #     print 'starting time points...'
-    #     self.test_filtering_time_points(roi_name,hemi)
-    #     print 'starting zs proportion...'
-    #     self.test_filtering_zs_proportion(roi_name,hemi)
-    #     print 'starting zs all...'
-    #     self.test_filtering_zs_all(roi_name,hemi)
-    #     print 'starting detrend...'
-    #     self.test_filtering_detrend(roi_name,hemi)
-    #     print 'done!'
-
-    # def test_filtering_time_points(self, roi_name='ba4a', hemi='lh',
-    #         trial_feature_trs_array=[[1,3],[2,4],[3,5],[4,6],[5,7],[6,8]],
-    #         zs_proportion=1, zs_all=False, detrend=True, multi_session=False):
-    #     if multi_session:
-    #         runs = 2*self.num_runs
-    #     else:
-    #         runs = self.num_runs
-    #     self.df = self.create_empty_filtering_df(cv_folds=runs,
-    #         conditions_per_cv=len(trial_feature_trs_array))
-    #     for idx,feature_trs in enumerate(trial_feature_trs_array):
-    #         print 'starting feature TRs: '+str(feature_trs)
-    #         self.trial_feature_trs = trial_feature_trs_array[idx]
-    #         if multi_session:
-    #             self.extract_multi_session_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-    #         else:
-    #             self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-    #         self.cross_validate()
-    #         self.df.loc[idx,['feature_trs','zs_prop','zs_all','detrend','roi_name']]=[feature_trs,
-    #             zs_proportion,zs_all,detrend,roi_name]
-    #         self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
-    #     self.df.to_csv(self.subject_id+'_'+roi_name+'_time.csv')
-
-    # def test_filtering_zs_proportion(self, roi_name='ba4a', hemi='lh',
-    #         zs_proportion_array=[.25, .5, .75, 1], trial_feature_trs=[4,6],
-    #         zs_all=False, detrend=True):
-    #     self.trial_feature_trs = trial_feature_trs
-    #     self.df = self.create_empty_filtering_df(cv_folds=self.num_runs,
-    #         conditions_per_cv=len(zs_proportion_array))
-    #     for idx,zs_proportion in enumerate(zs_proportion_array):
-    #         print 'starting zscore proportion: '+str(zs_proportion)
-    #         self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-    #         self.cross_validate()
-    #         self.df.loc[idx,['feature_trs','zs_prop','zs_all','detrend','roi_name']]=[trial_feature_trs,
-    #             zs_proportion,zs_all,detrend,roi_name]
-    #         self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
-    #     self.df.to_csv(self.subject_id+'_'+roi_name+'_zs_proportion.csv')
-
-    # def test_filtering_zs_all(self, roi_name='ba4a', hemi='lh',
-    #         trial_feature_trs=[4,6],detrend=True,zs_proportion=1,
-    #         zs_all_array=[True,False]):
-    #     self.trial_feature_trs = trial_feature_trs
-    #     self.df = self.create_empty_filtering_df(cv_folds=self.num_runs,
-    #         conditions_per_cv=len(zs_all_array))
-    #     for idx,zs_all in enumerate(zs_all_array):
-    #         print 'starting zscore proportion: '+str(zs_proportion)
-    #         self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-    #         self.cross_validate()
-    #         self.df.loc[idx,['feature_trs','zs_prop','zs_all','detrend','roi_name']]=[trial_feature_trs,
-    #             zs_proportion,zs_all,detrend,roi_name]
-    #         self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
-    #     self.df.to_csv(self.subject_id+'_'+roi_name+'_zs_all.csv')
-
-    # def test_filtering_detrend(self, roi_name='ba4a', hemi='lh',
-    #         trial_feature_trs=[4,6],zs_all=False,zs_proportion=1,
-    #         detrend_array=[True,False]):
-    #     self.trial_feature_trs = trial_feature_trs
-    #     self.df = self.create_empty_filtering_df(cv_folds=self.num_runs,
-    #         conditions_per_cv=len(detrend_array))
-    #     for idx,detrend in enumerate(detrend_array):
-    #         print 'starting zscore proportion: '+str(zs_proportion)
-    #         self.extract_features(roi_name=roi_name, hemi=hemi, zs_proportion=zs_proportion, zs_all=zs_all, detrend=detrend)
-    #         self.cross_validate()
-    #         self.df.loc[idx,['feature_trs','zs_prop','zs_all','detrend','roi_name']]=[trial_feature_trs,
-    #             zs_proportion,zs_all,detrend,roi_name]
-    #         self.df.loc[idx,'clf_acc']=np.array(self.cv_results).T
-    #     self.df.to_csv(self.subject_id+'_'+roi_name+'_detrend.csv')
-
-    # def create_empty_clf_param_df(self, conditions):
-    #     import pandas as pd
-    #     return pd.DataFrame(
-    #         columns=['clf_acc','zs_all_sess1','zs_all_sess2','detrend','roi_name','lm'],
-    #         index=range(conditions))
-
-    # def create_empty_filtering_df(self, cv_folds=8, conditions_per_cv=6):
-    #     import pandas as pd
-    #     return pd.DataFrame(
-    #         columns=['clf_acc','feature_trs','zs_prop','zs_all','detrend','roi_name'],
-    #         index=np.repeat(range(conditions_per_cv),cv_folds))
-
-    # def create_empty_cross_session_df(self, conditions):
-    #     import pandas as pd
-    #     return pd.DataFrame(
-    #         columns=['clf_acc','zs_all_sess1','zs_all_sess2','detrend','roi_name'],
-    #         index=range(conditions))
-
-    # def create_empty_cross_session_out_df(self, conditions, trials):
-    #     import pandas as pd
-    #     return pd.DataFrame(
-    #         columns=['target','clf_out_0','clf_out_1','clf_out_2','clf_out_3',
-    #         'zs_all_sess1','zs_all_sess2','detrend','roi_name'],
-    #         index=np.repeat(range(conditions),trials))
 
     def train_classifier(self):
         self.clf.train(self.fmri_data)
@@ -413,6 +468,29 @@ class FingfindLocalizer(object):
         for roi_idx, voxel in enumerate(self.fmri_data.fa.voxel_indices):
             out_img[voxel[0],voxel[1],voxel[2]] = max_abs_clf_weights[roi_idx]
         nib.save(nib.Nifti1Image(out_img, ref_affine, header=ref_header), out_name)
+
+    def save_importance_map_as_nifti(self):
+        import nibabel as nib
+        out_name = self.ref_dir+'/importance_map'
+        rfi_nii = nib.load(self.rfi_img)
+        rfi_data = rfi_nii.get_data()
+        ref_affine = rfi_nii.get_qform()
+        ref_header = rfi_nii.header
+        out_img = np.zeros(rfi_data.shape)
+        out_fingers = []
+        mean_patterns = np.zeros(self.clf.weights.shape)
+        for finger in range(self.clf.weights.shape[1]):
+            mean_patterns[:,finger] = np.mean(self.fmri_data[self.fmri_data.targets==finger],0)
+            out_fingers.append(np.zeros(rfi_data.shape))
+        importances = mean_patterns*self.clf.weights*((self.clf.weights*mean_patterns)>0)*np.sign(self.clf.weights)
+        max_abs_importances = [voxel[np.where(np.abs(voxel)==np.max(np.abs(voxel)))][0] for voxel in importances]
+        for roi_idx, voxel in enumerate(self.fmri_data.fa.voxel_indices):
+            out_img[voxel[0],voxel[1],voxel[2]] = max_abs_importances[roi_idx]
+            for finger in range(self.clf.weights.shape[1]):
+                out_fingers[finger][voxel[0],voxel[1],voxel[2]] = importances[roi_idx,finger]
+        nib.save(nib.Nifti1Image(out_img, ref_affine, header=ref_header), out_name)
+        for finger in range(self.clf.weights.shape[1]):
+            nib.save(nib.Nifti1Image(out_fingers[finger], ref_affine, header=ref_header), out_name+'_finger_'+str(finger))
 
     def save_finger_as_nifti(self, finger=0):
         import nibabel as nib

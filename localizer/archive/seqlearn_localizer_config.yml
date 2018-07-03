@@ -1,0 +1,11 @@
+#############################
+# seqlearn localizer config #
+#############################
+
+SUBJECT_DIR: /Users/eo5629/fmri/seqlearn
+NUM_RUNS: 12
+VOLS_PER_RUN: 144
+TR: 2.0
+TRS_PER_TRIAL: 8
+TRIAL_FEATURE_TRS: [5,7] #from a to b
+PRESSES_PER_TRIAL: 3

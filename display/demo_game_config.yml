@@ -11,7 +11,7 @@ runs: 12
 tr-time: 2.0 #seconds
 feedback-offset-time: 1.0 #seconds
 zscore-trs: 5 #10
-feedback-trs: 20 #155
+feedback-trs: 155 #20 #155
 
 # classifier params
 num-classes: 4

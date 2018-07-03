@@ -13,7 +13,8 @@ class InstaCortexViewer(object):
         npts = cortex.db.get_mask(subject, xfm_name, mask_type).sum()
 
         data = np.zeros((self.bufferlen, npts), 'float32')
-        vol = cortex.Volume(data, subject, xfm_name, vmin=vmin, vmax=vmax)
+        vol = cortex.Volume(data, subject, xfm_name, cmap='fingfind_heatmap_2', vmin=vmin, vmax=vmax)
+        # vol = cortex.Volume(data, subject, xfm_name, vmin=vmin, vmax=vmax)
         view = cortex.webshow(vol, port=port, autoclose=False, template=html_template, title='instabrain')
 
         self.subject = subject
