@@ -82,7 +82,8 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.log_file_time = config['log_file_time']
             log_file_name = os.getcwd()+'/log/'+str(self.log_file_time)+'_event.log'
             self.log_file = open(os.path.normpath(log_file_name),'w')
-            write_log(self.log_file, self.log_file_time, 'startup')
+            write_log_header(self.log_file)
+            write_log(self.log_file, self.log_file_time, 'startup', 0)
 
     def apply_classifier(self, data):
         self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
@@ -106,7 +107,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.raw_img_array[:,:,slc,rep] = np.rot90(np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims),k=-1)
         self.img_status_array[rep] += 1
         if self.img_status_array[rep] == self.num_slices:
-            if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_start')
+            if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_start', rep)
             self.pool.apply_async(func = process_volume,
                 args = (self.raw_img_array[:,:,:,rep],self.clf.voxel_indices,
                     rep,self.rfi_file,self.proc_dir,self.ref_header,
@@ -114,8 +115,8 @@ class InstaWatcher(PatternMatchingEventHandler):
                 callback = self.save_processed_roi)
 
     def save_processed_roi(self, roi_and_rep_data):
-        if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_end')
         (roi_data,rep) = roi_and_rep_data 
+        if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_end', rep)
         self.raw_roi_array[:,rep] = roi_data
         if rep == (self.baseline_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
@@ -126,7 +127,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             clf_out = self.apply_classifier(zscore_avg_roi)
             out_data = np.append(clf_out, self.target_class)
             self.send_clf_outputs(out_data)
-            if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent')
+            if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
 
@@ -185,14 +186,19 @@ def start_remote_recon(CONFIG):
     os.chdir(CONFIG['watch-dir'])
     subprocess.Popen(RECON_SCRIPT, shell=True)
 
-def check_for_scanner_trigger(log_file, log_file_time):
+def check_for_scanner_trigger(log_file, log_file_time, rep_count):
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_5:
-                write_log(log_file, log_file_time, 'trigger')
+                write_log(log_file, log_file_time, 'trigger', rep_count)
+                rep_count+=1
+    return rep_count
 
-def write_log(log_file, start_time, event_name):
-    log_file.write(str(time.time()-start_time)+','+event_name+'\n')
+def write_log_header(log_file):
+    log_file.write('time,event,tr\n')
+
+def write_log(log_file, start_time, event_name, count):
+    log_file.write(str(time.time()-start_time)+','+event_name+','+str(count)+'\n')
 
 if __name__ == "__main__":
     # load initialization parameters from args
@@ -225,12 +231,14 @@ if __name__ == "__main__":
     if CONFIG['logging_bool']:
         log_file_name = os.getcwd()+'/log/'+str(log_file_time)+'_trigger.log'
         log_file = open(os.path.normpath(log_file_name),'w')
+        write_log_header(log_file)
+        rep_count = 0
         import pygame
         pygame.init()
 
     # dummy loop for ongoing processes (or logging)
     while True:
         if CONFIG['logging_bool']:
-            check_for_scanner_trigger(log_file, log_file_time)
+            rep_count = check_for_scanner_trigger(log_file, log_file_time, rep_count)
         else:
             pass
