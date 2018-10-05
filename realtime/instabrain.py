@@ -214,27 +214,28 @@ if __name__ == "__main__":
     with open('config/'+args.config+'.yml') as f:
         CONFIG = yaml.load(f)
 
-    # start realtime watcher
+    # set debug parameters
     if args.debug:
         CONFIG['watch-dir'] = '../data/dump'
+
+    # set logging parameters and start logging 
     if args.logging:
         CONFIG['logging_bool'] = True
         log_file_time = int(np.floor(time.time()))
         CONFIG['log_file_time'] = log_file_time
-    start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
-
-    # start remote recon server
-    if not(args.debug):
-        start_remote_recon(CONFIG)
-
-    # start scanner trigger logging
-    if CONFIG['logging_bool']:
         log_file_name = os.getcwd()+'/log/'+str(log_file_time)+'_trigger.log'
         log_file = open(os.path.normpath(log_file_name),'w')
         write_log_header(log_file)
         rep_count = 0
         import pygame
         pygame.init()
+
+    # start realtime watcher
+    start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
+
+    # start remote recon server
+    if not(args.debug):
+        start_remote_recon(CONFIG)
 
     # dummy loop for ongoing processes (or logging)
     while True:
