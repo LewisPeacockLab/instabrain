@@ -192,7 +192,7 @@ def check_for_scanner_trigger(log_file, log_file_time, rep_count):
             if event.key == pygame.K_5:
                 write_log(log_file, log_file_time, 'trigger', rep_count)
                 rep_count+=1
-            elif event.key == pygame.K_q and pygame.key.get_mods() & pygame.KMOD_LALT:
+            elif event.key == pygame.K_ESCAPE:
                 sys.exit()
     return rep_count
 
@@ -231,6 +231,7 @@ if __name__ == "__main__":
         rep_count = 0
         import pygame
         pygame.init()
+        pygame.display.set_mode((1,1))
 
     # start realtime watcher
     start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
