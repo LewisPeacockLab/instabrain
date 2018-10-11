@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
-import os, yaml, time, pickle, subprocess
+import os, sys, yaml, time, pickle, subprocess
 import requests as r
 
 class InstaWatcher(PatternMatchingEventHandler):
@@ -192,6 +192,8 @@ def check_for_scanner_trigger(log_file, log_file_time, rep_count):
             if event.key == pygame.K_5:
                 write_log(log_file, log_file_time, 'trigger', rep_count)
                 rep_count+=1
+            elif event.key == pygame.K_q and pygame.key.get_mods() & pygame.KMOD_LALT:
+                sys.exit()
     return rep_count
 
 def write_log_header(log_file):
