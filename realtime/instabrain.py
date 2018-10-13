@@ -106,6 +106,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         with open(event.src_path.rsplit('.tmp')[0]) as f:
             self.raw_img_array[:,:,slc,rep] = np.rot90(np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims),k=-1)
         self.img_status_array[rep] += 1
+        if self.logging_bool: write_log(self.log_file, self.log_file_time, 'slc_'+str(slc), rep)
         if self.img_status_array[rep] == self.num_slices:
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_start', rep)
             self.pool.apply_async(func = process_volume,
@@ -126,7 +127,8 @@ class InstaWatcher(PatternMatchingEventHandler):
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
             out_data = np.append(clf_out, self.target_class)
-            self.send_clf_outputs(out_data)
+            if not(self.logging_bool):
+                self.send_clf_outputs(out_data)
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
