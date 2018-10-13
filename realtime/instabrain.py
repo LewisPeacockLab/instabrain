@@ -83,6 +83,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             log_file_name = os.getcwd()+'/log/'+str(self.log_file_time)+'_event.log'
             self.log_file = open(os.path.normpath(log_file_name),'w')
             write_log_header(self.log_file)
+            self.log_file_time = 1.539e9 #hacky
             write_log(self.log_file, self.log_file_time, 'startup', 0)
 
     def apply_classifier(self, data):
@@ -188,16 +189,6 @@ def start_remote_recon(CONFIG):
     os.chdir(CONFIG['watch-dir'])
     subprocess.Popen(RECON_SCRIPT, shell=True)
 
-def check_for_scanner_trigger(log_file, log_file_time, rep_count):
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_5:
-                write_log(log_file, log_file_time, 'trigger', rep_count)
-                rep_count+=1
-            elif event.key == pygame.K_ESCAPE:
-                sys.exit()
-    return rep_count
-
 def write_log_header(log_file):
     log_file.write('time,event,tr\n')
 
@@ -225,15 +216,7 @@ if __name__ == "__main__":
     # set logging parameters and start logging 
     if args.logging:
         CONFIG['logging_bool'] = True
-        log_file_time = int(np.floor(time.time()))
-        CONFIG['log_file_time'] = log_file_time
-        log_file_name = os.getcwd()+'/log/'+str(log_file_time)+'_trigger.log'
-        log_file = open(os.path.normpath(log_file_name),'w')
-        write_log_header(log_file)
-        rep_count = 0
-        import pygame
-        pygame.init()
-        pygame.display.set_mode((1,1))
+        CONFIG['log_file_time'] = int(np.floor(time.time()))
 
     # start realtime watcher
     start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
@@ -244,7 +227,4 @@ if __name__ == "__main__":
 
     # dummy loop for ongoing processes (or logging)
     while True:
-        if CONFIG['logging_bool']:
-            rep_count = check_for_scanner_trigger(log_file, log_file_time, rep_count)
-        else:
-            pass
+        pass
