@@ -3,8 +3,8 @@
 #############################################
 
 # file processing
-watch-dir: /home/realtime/10GbDump
-recon-script: /home/realtime/remoteServer/ejaMBRemoteICE-R007/runLocal_CPU_copy.sh
+watch-dir: /home/instabrain/mridump
+recon-script: /home/instabrain/recon-scripts/runLocal_CPU_copy.sh
 archive-data: True
 
 # networking
@@ -16,7 +16,7 @@ feedback-trs: 155 #150
 
 # data processing
 moving-avg-trs: 3
-mc-mode: fsl # or afni
+mc-mode: afni # or fsl
 
 # MRI sequence
 multiband: True
