@@ -85,6 +85,8 @@ class InstaWatcher(PatternMatchingEventHandler):
             write_log_header(self.log_file)
             self.log_file_time = 1.539e9 #hacky
             write_log(self.log_file, self.log_file_time, 'startup', 0)
+        else:
+            self.logging_bool = False
 
     def apply_classifier(self, data):
         self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
