@@ -133,8 +133,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
             out_data = np.append(clf_out, self.target_class)
-            if not(self.logging_bool):
-                self.send_clf_outputs(out_data)
+            self.send_clf_outputs(out_data)
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
