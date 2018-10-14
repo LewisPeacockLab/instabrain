@@ -89,7 +89,10 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.logging_bool = False
 
     def apply_classifier(self, data):
-        self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
+        if not(self.logging_bool):
+            self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
+        else:
+            self.clf.predict(np.random.normal(0,1,(1,self.num_roi_voxels)))
         return self.clf.ca.estimates
 
     def reset_img_arrays(self):
@@ -165,6 +168,8 @@ def process_volume(raw_img, roi_voxels, rep, rfi_file,
         os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' '+temp_file+' 2>/dev/null')
     elif mc_mode == 'fsl':
         os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
+    elif mc_mode == 'none':
+        os.system('cp '+temp_file+' '+mc_file)
     roi_data = map_voxels_to_roi(nib.load(mc_file).get_data(),roi_voxels)
     return (roi_data, rep)
 
