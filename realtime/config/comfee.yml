@@ -20,6 +20,9 @@ mc-mode: afni # or fsl
 # MRI sequence
 multiband: True
 
+# feedback mode
+feedback-mode: intermittent
+
 # intermittent feedback
 trials-per-run: 18
 cue-trs: 6
