@@ -12,7 +12,6 @@ post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
 
 # imaging params
 baseline-trs: 10
-feedback-trs: 119
 
 # data processing
 moving-avg-trs: 2
@@ -20,3 +19,10 @@ mc-mode: afni # or fsl
 
 # MRI sequence
 multiband: True
+
+# intermittent feedback
+trials-per-run: 18
+cue-trs: 6
+wait-trs: 1
+feedback-trs: 1
+iti-trs: 4
