@@ -1,0 +1,22 @@
+#############################################
+# configuration file for instabrain backend #
+#############################################
+
+# file processing
+watch-dir: /home/instabrain/mridump
+recon-script: /home/instabrain/recon-scripts/runLocal_CPU_copy.sh
+archive-data: True
+
+# networking
+post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
+
+# imaging params
+baseline-trs: 10
+feedback-trs: 119
+
+# data processing
+moving-avg-trs: 2
+mc-mode: afni # or fsl
+
+# MRI sequence
+multiband: True
