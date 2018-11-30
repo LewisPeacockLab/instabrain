@@ -127,6 +127,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.raw_roi_array[:,rep] = roi_data
         if rep == (self.baseline_trs-1):
             self.voxel_sigmas = np.sqrt(np.var(self.raw_roi_array[:,:rep+1],1))
+            self.voxel_sigmas[np.where(self.voxel_sigmas==0)] = 1e6 # ignore 'zero variance' voxels
         if rep in self.feedback_calc_trs:
             self.feedback_count += 1
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
