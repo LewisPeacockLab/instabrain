@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
-import os, sys, yaml, time, pickle, subprocess
+import os, sys, glob, yaml, time, pickle, subprocess
 import requests as r
 
 class InstaWatcher(PatternMatchingEventHandler):
@@ -51,12 +51,12 @@ class InstaWatcher(PatternMatchingEventHandler):
         # files and directories
         self.subject_id = config['subject-id']
         self.ref_dir = os.getcwd()+'/ref/'+self.subject_id
-        self.rfi_file = self.ref_dir+'/rfi.nii'
+        self.rfi_file = glob.glob(self.ref_dir+'/*rfi.nii')[0]
         self.rfi_img = nib.load(self.rfi_file)
         self.rfi_data = self.rfi_img.get_data()
         self.ref_affine = self.rfi_img.get_qform()
         self.ref_header = self.rfi_img.header
-        self.clf_file = self.ref_dir+'/clf.p'
+        self.clf_file = glob.glob(self.ref_dir+'/*clf.p')[0]
         # optional: target class can be specified in backend
         try:
             self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
