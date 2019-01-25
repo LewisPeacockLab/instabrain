@@ -25,7 +25,7 @@ feedback-mode: intermittent
 
 # intermittent feedback
 trials-per-run: 16
-cue-trs: 6
+cue-trs: 5 #6 
 wait-trs: 1
 feedback-trs: 1
-iti-trs: 4
+iti-trs: 5 #4
