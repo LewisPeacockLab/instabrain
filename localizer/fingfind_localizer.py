@@ -521,17 +521,21 @@ class FingfindLocalizer(object):
         gunzip_cmd = 'gunzip '+self.rfi_img+'.gz'
         os.system(gunzip_cmd)
 
-    def motion_correct(self):
+    def motion_correct(self, mode='fsl'):
         # add mv ./* ./archive
         for run in range(self.num_runs):
             print 'starting mc run '+str(run+1)
             in_bold = glob.glob(self.bold_dir+'/*run-'+str(run+1).zfill(3)+'*.nii')[0]
             out_bold = self.bold_dir+'/rrun-'+str(run+1).zfill(3)+'.nii'
             ref_bold = self.rfi_img
-            cmd = 'mcflirt -in '+in_bold+' -o '+out_bold+' -r '+ref_bold
+            if mode == 'fsl':
+                cmd = 'mcflirt -in '+in_bold+' -o '+out_bold+' -r '+ref_bold
+            elif mode == 'afni':
+                cmd = '3dvolreg -prefix '+out_bold+' -base '+ref_bold+' '+in_bold+' 2>/dev/null'
             os.system(cmd)
-        gunzip_cmd = 'gunzip '+self.bold_dir+'/*.gz'
-        os.system(gunzip_cmd)
+        if mode == 'fsl':
+            gunzip_cmd = 'gunzip '+self.bold_dir+'/*.gz'
+            os.system(gunzip_cmd)
 
     def register_2_rfi(self):
         cmd = ('bbregister --s '+self.fs_subject_id+' --mov '+self.rfi_img
