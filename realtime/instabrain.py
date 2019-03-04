@@ -154,6 +154,9 @@ class InstaWatcher(PatternMatchingEventHandler):
             if self.archive_bool:
                 run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
                 os.mkdir(run_dir)
+                if target_dir == self.proc_dir:
+                    os.system('cat '+target_dir+'/*.txt > '+run_dir+'/mc_params.txt 2>/dev/null')
+                    os.system('rm '+target_dir+'/*.txt 2>/dev/null')
                 os.system('mv '+target_dir+'/*.* '+run_dir+' 2>/dev/null')
             os.system('rm '+target_dir+'/*.* 2>/dev/null')
         self.reset_img_arrays()
@@ -163,9 +166,10 @@ def process_volume(raw_img, roi_voxels, rep, rfi_file,
         proc_dir, ref_header, ref_affine, mc_mode):
     temp_file = proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_file = proc_dir + '/img_mc_' + str(rep+1).zfill(3) + '.nii.gz'
+    mc_params_file = proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'
     nib.save(nib.Nifti1Image(raw_img, ref_affine, header=ref_header), temp_file)
     if mc_mode == 'afni':
-        os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' '+temp_file+' 2>/dev/null')
+        os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' -1Dfile '+mc_params_file+' '+temp_file+' 2>/dev/null')
     elif mc_mode == 'fsl':
         os.system('mcflirt -in '+temp_file+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
     elif mc_mode == 'none':
