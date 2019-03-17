@@ -24,8 +24,8 @@ multiband: True
 feedback-mode: intermittent
 
 # intermittent feedback
-trials-per-run: 16
-cue-trs: 5 #6 
+trials-per-run: 20
+cue-trs: 5
 wait-trs: 1
 feedback-trs: 1
-iti-trs: 5 #4
+iti-trs: 4
