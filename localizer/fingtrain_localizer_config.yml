@@ -1,0 +1,11 @@
+###############################
+# instabrain localizer config #
+###############################
+
+SUBJECT_DIR: /Users/eo5629/fmri
+NUM_RUNS: 8
+VOLS_PER_RUN: 170
+TR: 2.0
+ZSCORE_TRS: 10
+TRS_PER_TRIAL: 8
+TRIAL_FEATURE_TRS: [4,6] # from a to b
