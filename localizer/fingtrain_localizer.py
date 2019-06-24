@@ -12,7 +12,7 @@ from mvpa2.generators.partition import NFoldPartitioner
 from mvpa2.clfs.smlr import SMLR
 from scipy.signal import detrend, savgol_filter
 
-class FingtrainDecoder(object):
+class FingtrainLocalizer(object):
     def __init__(self, subject_id):
         with open('fingtrain_localizer_config.yml') as f:
             self.CONFIG = yaml.load(f)
@@ -38,7 +38,7 @@ class FingtrainDecoder(object):
 
         # labels
         self.behav_data = pd.read_csv(self.ref_dir+'/localizer_press.csv')
-        self.trial_data = self.behav_data.groupby('trial').first()
+        self.trial_data = self.behav_data.groupby('trial',sort=False).first()
         self.trial_targets = self.trial_data.target_finger
         self.trial_chunks = self.trial_data.run
         self.n_class = np.unique(self.trial_targets).size
@@ -151,6 +151,42 @@ class FingtrainDecoder(object):
         self.clf.predict(data)
         return self.clf.ca.estimates
 
+    def get_cv_clf_outs(self):
+        self.cv_clf_outs = np.zeros((self.num_runs*self.trials_per_run,self.n_class))
+        for run in range(self.num_runs):
+            self.clf.train(self.fmri_data[self.fmri_data.chunks!=run])
+            self.cv_clf_outs[run*self.trials_per_run:(run+1)*self.trials_per_run,:] = (
+            self.apply_classifier(self.fmri_data[self.fmri_data.chunks==run]))
+
+    def calculate_neurofeedback_score(self, score_scale_exponent=0.5):
+        self.nfb_scores_1 = []
+        self.nfb_scores_2 = []
+        for idx,target_finger in enumerate(self.trial_targets):
+            if target_finger == 1:
+                positive_finger = 0
+                negative_finger = 2
+                append_to = self.nfb_scores_1
+            elif target_finger == 2:
+                positive_finger = 3
+                negative_finger = 1
+                append_to = self.nfb_scores_2
+            if target_finger in [1,2]:
+                clf_data = self.cv_clf_outs[idx,:]
+                raw_score = clf_data[positive_finger]-clf_data[negative_finger]
+                append_to.append(0.5+0.5*np.copysign(np.power(np.abs(raw_score),
+                    score_scale_exponent),raw_score))
+
+    def plot_neurofeedback_score(self, score_scale_exponent=0.5):
+        import matplotlib.pyplot as plt
+        import seaborn as sea
+        self.calculate_neurofeedback_score(score_scale_exponent)
+        plt.ion()
+        sea.distplot(self.nfb_scores_1)
+        sea.distplot(self.nfb_scores_2)
+        plt.xlim((0,1))
+        plt.title(self.subject_id+' calculated bias scores')
+        plt.legend(['middle','ring'])
+
     def cross_validate(self, leave_out_runs=1):
         partitioner = NFoldPartitioner(cvtype=leave_out_runs,
             count=np.size(np.unique(self.fmri_data.chunks)),
@@ -232,23 +268,11 @@ class FingtrainDecoder(object):
 
     def generate_exclusive_sensorimotor_masks(self, hemi='lh'):
         roi_names = ['ba4a','ba4p','ba3a','ba3b']
+        self.generate_exclusive_mask(roi_names,hemi)
         cmd_m1 = 'fslmaths '+self.ref_dir+'/mask_'+hemi+'_multi_roi -uthr 2.5 -bin '+self.ref_dir+'/mask_'+hemi+'_m1'
         os.system(cmd_m1)
         cmd_s1 = 'fslmaths '+self.ref_dir+'/mask_'+hemi+'_multi_roi -thr 2.5 -bin '+self.ref_dir+'/mask_'+hemi+'_s1'
         os.system(cmd_s1)
-
-        cmd_m1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1 -sub '
-            +self.ref_dir+'/mask_'+hemi+'_s1+ -bin '+self.ref_dir+'/mask_'+hemi+'_m1-')
-        os.system(cmd_m1_minus)
-        cmd_m1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_m1 -sub '
-            +self.ref_dir+'/mask_'+hemi+'_s1++ -bin '+self.ref_dir+'/mask_'+hemi+'_m1--')
-        os.system(cmd_m1_minusminus)
-        cmd_s1_minus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1 -sub '
-            +self.ref_dir+'/mask_'+hemi+'_m1+ -bin '+self.ref_dir+'/mask_'+hemi+'_s1-')
-        os.system(cmd_s1_minus)
-        cmd_s1_minusminus = ('fslmaths '+self.ref_dir+'/mask_'+hemi+'_s1 -sub '
-            +self.ref_dir+'/mask_'+hemi+'_m1++ -bin '+self.ref_dir+'/mask_'+hemi+'_s1--')
-        os.system(cmd_s1_minusminus)
         gunzip_cmd = 'gunzip '+self.ref_dir+'/*.gz'
         os.system(gunzip_cmd)
 
