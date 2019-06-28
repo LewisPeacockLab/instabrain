@@ -313,6 +313,20 @@ class FingtrainLocalizer(object):
             print cmd
         os.system(cmd)
 
+    def generate_sphere_roi(self, coords=(64,43,19), gm_mask='mask_lh_m1s1', mask_name='mask_lh_hand_knob', radius=15):
+        cmd = 'fslmaths '+self.rfi_img+' -mul 0 -add 1 -roi '+str(coords[0])+' 1 '+str(coords[1])+' 1 '+str(coords[2])+' 1 0 1 '+self.ref_dir+'/'+mask_name
+        os.system(cmd)
+        cmd = 'fslmaths '+self.ref_dir+'/'+mask_name+' -kernel sphere '+str(radius)+' -fmean '+self.ref_dir+'/'+mask_name
+        os.system(cmd)
+        cmd = 'fslmaths '+self.ref_dir+'/'+mask_name+' -thr 1e-8 -bin '+self.ref_dir+'/'+mask_name
+        os.system(cmd)
+        cmd = 'fslmaths '+self.ref_dir+'/'+gm_mask+' -mul '+self.ref_dir+'/'+mask_name+' '+self.ref_dir+'/'+mask_name
+        os.system(cmd)
+        cmd = 'fslmaths '+self.ref_dir+'/'+mask_name+' -bin '+self.ref_dir+'/'+mask_name
+        os.system(cmd)
+        gunzip_cmd = 'gunzip '+self.ref_dir+'/*.gz'
+        os.system(gunzip_cmd)
+
     def convert_to_pycortex(self):
         import cortex; from cortex.xfm import Transform
         cortex.freesurfer.import_subj(self.fs_subject_id, sname=self.subject_id)
