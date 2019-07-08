@@ -88,6 +88,14 @@ class InstaWatcher(PatternMatchingEventHandler):
         else:
             self.logging_bool = False
 
+        # dashboard display
+        if config['dashboard_bool']:
+            from dashboard import InstaDashboard
+            self.dashboard_bool = True
+            self.dashboard = InstaDashboard(config_name=CONFIG['config-name'])
+            self.dashboard.start_dashboard_server()
+
+
     def apply_classifier(self, data):
         if not(self.logging_bool):
             self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
@@ -136,8 +144,33 @@ class InstaWatcher(PatternMatchingEventHandler):
             out_data = np.append(clf_out, self.target_class)
             self.send_clf_outputs(out_data)
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
+
+        # dashboard outputs 
+        if self.dashboard_bool:
+            if rep >= (self.baseline_trs+1):
+                detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+                zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+                clf_out = self.apply_classifier(zscore_avg_roi)
+                try:
+                    self.dashboard.post_clf_outs(clf_out, rep)
+                except:
+                    pass
+            mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
+            mc_params = np.loadtxt(mc_params_file)
+            try:
+                self.dashboard.post_mc_params(mc_params, rep)
+            except:
+                pass
+            try:
+                self.dashboard.check_for_new_data()
+            except:
+                pass
+        ###################
+
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
+            if self.dashboard_bool:
+                self.dashboard.reset_for_next_run()
 
     def send_clf_outputs(self, out_data):
         payload = {"clf_outs": list(out_data[:-1]),
@@ -183,10 +216,12 @@ def map_voxels_to_roi(img, roi_voxels):
         out_roi[voxel] = img[roi_voxels[voxel,0],roi_voxels[voxel,1],roi_voxels[voxel,2]]
     return out_roi
 
-def start_watcher(CONFIG, subject_id, debug_bool=False, logging_bool=False):
+def start_watcher(CONFIG, subject_id, config_name, debug_bool=False, logging_bool=False, dashboard_bool=False):
     CONFIG['subject-id'] = subject_id
+    CONFIG['config-name'] = config_name
     CONFIG['debug-bool'] = debug_bool
     CONFIG['logging_bool'] = logging_bool
+    CONFIG['dashboard_bool'] = dashboard_bool
     OBS_TIMEOUT = 0.01
     event_observer = Observer(OBS_TIMEOUT)
     event_handler = InstaWatcher(CONFIG)
@@ -214,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument('-c','--config', help='Configuration file',default='default')
     parser.add_argument('-d','--debug', help='Debugging boolean', action='store_true', default=False)
     parser.add_argument('-l','--logging', help='Logging boolean', action='store_true', default=False)
+    parser.add_argument('-b','--dashboard', help='Dashboard display boolean', action='store_true', default=False)
     args = parser.parse_args()
 
     # load config
@@ -230,7 +266,7 @@ if __name__ == "__main__":
         CONFIG['log_file_time'] = int(np.floor(time.time()))
 
     # start realtime watcher
-    start_watcher(CONFIG, args.subjectid, args.debug, args.logging)
+    start_watcher(CONFIG, args.subjectid, args.config, args.debug, args.logging, args.dashboard)
 
     # start remote recon server
     if not(args.debug):
