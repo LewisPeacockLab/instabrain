@@ -94,6 +94,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.dashboard_bool = True
             self.dashboard = InstaDashboard(config_name=CONFIG['config-name'])
             self.dashboard.start_dashboard_server()
+            self.dashboard.init_plot()
 
 
     def apply_classifier(self, data):
