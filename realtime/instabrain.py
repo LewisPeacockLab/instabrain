@@ -93,8 +93,6 @@ class InstaWatcher(PatternMatchingEventHandler):
             from dashboard import InstaDashboard
             self.dashboard_bool = True
             self.dashboard = InstaDashboard(config_name=CONFIG['config-name'])
-            self.dashboard.start_dashboard_server()
-            self.dashboard.init_plot()
 
 
     def apply_classifier(self, data):
@@ -152,20 +150,11 @@ class InstaWatcher(PatternMatchingEventHandler):
                 detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
                 zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
                 clf_out = self.apply_classifier(zscore_avg_roi)
-                try:
-                    self.dashboard.post_clf_outs(clf_out, rep)
-                except:
-                    pass
+                self.dashboard.post_clf_outs(clf_out, rep)
             mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
             mc_params = np.loadtxt(mc_params_file)
-            try:
-                self.dashboard.post_mc_params(mc_params, rep)
-            except:
-                pass
-            try:
-                self.dashboard.check_for_new_data()
-            except:
-                pass
+            self.dashboard.post_mc_params(mc_params, rep)
+            self.dashboard.check_for_new_data()
         ###################
 
         if rep == (self.run_trs-1):
