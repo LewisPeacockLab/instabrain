@@ -9,6 +9,7 @@ archive-data: True
 
 # networking
 post-url: http://169.254.137.200:5000/rt_data
+dashboard-base-url: http://127.0.0.1:5000
 
 # imaging params
 baseline-trs: 10
