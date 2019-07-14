@@ -105,6 +105,7 @@ class InstaDashboard(object):
                 for dummy_plot in range(self.num_mc_params+1):
                     plt.plot(-1,-1,color=self.MC_COLORS[dummy_plot])
                 plt.legend(['FD','x','y','z','a','b','c'],bbox_to_anchor=(1.23,1.0))
+                plt.pause(0.001)
 
     def demo_realtime(self, sleep_time=0.1):
         for tr in range(self.run_trs):
@@ -128,7 +129,7 @@ class InstaDashboard(object):
         self.shutdown_server()
 
     def post_mc_params(self, mc_params, rep):
-        mc_payload = {"mc_params": list(clf_outs),
+        mc_payload = {"mc_params": list(mc_params),
                        "tr_num": int(rep)}
         r.post(self.post_mc_url, json=mc_payload)
 

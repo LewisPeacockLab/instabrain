@@ -92,6 +92,12 @@ class InstaWatcher(PatternMatchingEventHandler):
 
         # dashboard display
         if config['dashboard_bool']:
+            from dashboard import InstaDashboard
+            self.dashboard_bool = True
+            self.dashboard = InstaDashboard(config_name=CONFIG['config-name'])
+
+        # dashboard display
+        if config['dashboard_bool']:
             try:
                 self.dashboard_base_url = config['dashboard-base-url']
                 self.dashboard_mc_url = self.dashboard_base_url+'/mc_data'
@@ -101,6 +107,9 @@ class InstaWatcher(PatternMatchingEventHandler):
                 self.dashboard_bool = False
         else:
             self.dashboard_bool = False
+            from dashboard import InstaDashboard
+            self.dashboard_bool = True
+            self.dashboard = InstaDashboard(config_name=CONFIG['config-name'])
 
     def apply_classifier(self, data):
         if not(self.logging_bool):
@@ -154,7 +163,30 @@ class InstaWatcher(PatternMatchingEventHandler):
 
         # dashboard outputs 
         if self.dashboard_bool:
+            if rep >= (self.baseline_trs+1):
+                detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+                zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+                clf_out = self.apply_classifier(zscore_avg_roi)
+                self.dashboard.post_clf_outs(clf_out, rep)
+            mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
+            mc_params = np.loadtxt(mc_params_file)
+            self.dashboard.post_mc_params(mc_params, rep)
+            self.dashboard.check_for_new_data()
+        ###################
+
+        # dashboard outputs 
+        if self.dashboard_bool:
             self.check_for_dashboard(rep)
+            if rep >= (self.baseline_trs+1):
+                detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+                zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+                clf_out = self.apply_classifier(zscore_avg_roi)
+                self.dashboard.post_clf_outs(clf_out, rep)
+            mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
+            mc_params = np.loadtxt(mc_params_file)
+            self.dashboard.post_mc_params(mc_params, rep)
+            self.dashboard.check_for_new_data()
+        ###################
 
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
