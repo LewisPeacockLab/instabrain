@@ -6,6 +6,7 @@ from scipy.signal import detrend
 import nibabel as nib
 import os, sys, glob, yaml, time, pickle, subprocess
 import requests as r
+from dashboard import post_dashboard_mc_params, post_dashboard_clf_outs
 
 REALTIME_TIMEOUT = 0.1 # seconds to HTTP post timeout
 
@@ -96,10 +97,14 @@ class InstaWatcher(PatternMatchingEventHandler):
                 self.dashboard_base_url = config['dashboard-base-url']
                 self.dashboard_mc_url = self.dashboard_base_url+'/mc_data'
                 self.dashboard_clf_url = self.dashboard_base_url+'/clf_data'
+                self.dashboard_shutdown_url = self.dashboard_base_url+'/shutdown'
+                self.try_dashboard_connection = True
                 self.dashboard_bool = True
             except:
+                self.try_dashboard_connection = False
                 self.dashboard_bool = False
         else:
+            self.try_dashboard_connection = False
             self.dashboard_bool = False
 
     def apply_classifier(self, data):
@@ -148,27 +153,25 @@ class InstaWatcher(PatternMatchingEventHandler):
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
             out_data = np.append(clf_out, self.target_class)
-            # add check here
             self.send_clf_outputs(out_data)
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
 
         # dashboard outputs 
         if self.dashboard_bool:
-            self.check_for_dashboard(rep)
+            try:
+                self.check_for_dashboard(rep)
+            except:
+                self.dashboard_bool = False
 
         if rep == (self.run_trs-1):
             self.reset_for_next_run()
-            if self.dashboard_bool:
-                self.dashboard.reset_for_next_run()
 
     def send_clf_outputs(self, out_data):
         payload = {"clf_outs": list(out_data[:-1]),
             "target_class": out_data[-1],
             "feedback_num": self.feedback_count}
-        status_code = 404
         try:
-            post_status = r.post(self.post_url, json=payload, timeout=REALTIME_TIMEOUT)
-            status_code = post_status.status_code
+            r.post(self.post_url, json=payload, timeout=REALTIME_TIMEOUT)
         except:
             pass
 
@@ -177,24 +180,14 @@ class InstaWatcher(PatternMatchingEventHandler):
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
-            try:
-                self.dashboard.post_clf_outs(clf_out, rep)
-            except:
-                pass
+            post_dashboard_clf_outs(clf_outs, rep, self.dashboard_clf_url)
         mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
         mc_params = np.loadtxt(mc_params_file)
-        # add check here
-        try:
-            self.dashboard.post_mc_params(mc_params, rep)
-        except:
-            pass
-        try:
-            self.dashboard.check_for_new_data()
-        except:
-            pass
+        post_dashboard_mc_params(mc_params, rep, self.dashboard_mc_url)
 
     def reset_for_next_run(self):
-        # self.dashboard_bool = True
+        if self.try_dashboard_connection:
+            self.dashboard_bool = True
         self.run_count += 1
         for target_dir in [self.proc_dir, self.watch_dir]:
             if self.archive_bool:

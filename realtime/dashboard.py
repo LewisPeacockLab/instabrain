@@ -9,6 +9,7 @@ from flask import Flask, request
 POST_CLF_URL = 'http://127.0.0.1:5000/clf_data'
 POST_MC_URL = 'http://127.0.0.1:5000/mc_data'
 SHUTDOWN_URL = 'http://127.0.0.1:5000/shutdown'
+REALTIME_TIMEOUT = 0.1
 
 class InstaDashboard(object):
     def __init__(self, config_name='fingtrain', num_classes=4, num_mc_params=6, max_mc_display=5, fd_scale_factor=2):
@@ -48,6 +49,7 @@ class InstaDashboard(object):
                                       +np.arange(self.trials)*self.trial_trs-1)
         self.reset_clf_indices()
         self.init_plot()
+        self.active_bool = False
 
     def set_constants(self):
         self.CLF_COLORS = ['gold','seagreen','dodgerblue','violet'] # add more colors for more classes lol
@@ -84,7 +86,6 @@ class InstaDashboard(object):
         pass
 
     def init_plot(self):
-        plt.ion()
         self.clf_ax = plt.subplot(2,1,1)
         self.mc_ax = plt.subplot(2,1,2)
         plt.subplots_adjust(hspace=.4, right=.8)
@@ -105,38 +106,19 @@ class InstaDashboard(object):
                 for dummy_plot in range(self.num_mc_params+1):
                     plt.plot(-1,-1,color=self.MC_COLORS[dummy_plot])
                 plt.legend(['FD','x','y','z','a','b','c'],bbox_to_anchor=(1.23,1.0))
-                plt.pause(0.001)
+        plt.pause(0.001)
 
     def demo_realtime(self, sleep_time=0.1):
         for tr in range(self.run_trs):
-            mc_payload = {"mc_params": list(np.random.rand(self.num_mc_params).flatten()),
-                          "tr_num": int(tr)}
-            status_code = 404
-            while status_code != 200:
-               post_status = r.post(self.post_mc_url, json=mc_payload)
-               status_code = post_status.status_code
-            status_code = 404
+            mc_params = list(np.random.rand(self.num_mc_params).flatten())
+            rep = int(tr)
+            post_dashboard_mc_params(mc_params, rep, self.post_mc_url)
             if tr >= self.baseline_trs:
-                clf_payload = {"clf_outs": list(np.random.rand(self.num_classes).flatten()),
-                               "tr_num": int(tr)}
-                status_code = 404
-                while status_code != 200:
-                    post_status = r.post(self.post_clf_url, json=clf_payload)
-                    status_code = post_status.status_code
+                clf_outs = list(np.random.rand(self.num_classes).flatten())
+                post_dashboard_clf_outs(clf_outs, rep, self.post_clf_url)
             self.check_for_new_data()
             time.sleep(sleep_time)
-        self.reset_for_next_run()
-        self.shutdown_server()
-
-    def post_mc_params(self, mc_params, rep):
-        mc_payload = {"mc_params": list(mc_params),
-                       "tr_num": int(rep)}
-        r.post(self.post_mc_url, json=mc_payload)
-
-    def post_clf_outs(self, clf_outs, rep):
-        clf_payload = {"clf_outs": list(clf_outs),
-                       "tr_num": int(rep)}
-        r.post(self.post_clf_url, json=clf_payload)
+        shutdown_server(self.shutdown_url)
 
     def demo_realtime_offline(self, sleep_time=0.1):
         for tr in range(self.run_trs):
@@ -147,29 +129,34 @@ class InstaDashboard(object):
                 plt.pause(sleep_time)
 
     def check_for_new_data(self):
-        self.check_for_mc_data()
-        self.check_for_clf_data()
-        plt.pause(0.001)
+        if not(self.active_bool) and (self.mc_tr_num_shared.value == 0):
+            self.reset_for_next_run()
+        if self.active_bool:
+            self.check_for_mc_data()
+            self.check_for_clf_data()
+            plt.pause(0.001)
+        if self.clf_tr_num == self.run_trs-1:
+            self.active_bool = False
 
     def check_for_clf_data(self):
         if self.clf_tr_num_shared.value > self.clf_tr_num:
             self.plot_clf_tr(tr=self.clf_tr_num_shared.value,clf_outs=self.clf_outs[:])
-            self.clf_tr_num+=1
+            self.clf_tr_num=self.clf_tr_num_shared.value
 
     def check_for_mc_data(self):
         if self.mc_tr_num_shared.value > self.mc_tr_num:
             self.plot_mc_tr(tr=self.mc_tr_num_shared.value,mc_params=self.mc_params[:])
-            self.mc_tr_num+=1
+            self.mc_tr_num=self.mc_tr_num_shared.value
 
     def reset_for_next_run(self):
         self.clear_plot()
         self.reset_clf_indices()
+        self.active_bool = True
 
     def reset_clf_indices(self):
         self.clf_tr_num = -1
         self.mc_tr_num = -1
         self.clf_tr_num_shared.value = -1
-        self.mc_tr_num_shared.value = -1
 
     def clear_plot(self):
         for ax in [self.clf_ax, self.mc_ax]:
@@ -187,12 +174,33 @@ class InstaDashboard(object):
                                          args=(self.clf_tr_num_shared,self.mc_tr_num_shared,self.clf_outs,self.mc_params))
         self.status_display_thread.start()
 
-    def shutdown_server(self):
-        r.post(self.shutdown_url)
 
 def load_config(config_name='default'):
-    with open('../realtime/config/'+config_name+'.yml') as f:
+    with open('config/'+config_name+'.yml') as f:
         return yaml.load(f)
+
+def shutdown_server(self, shutdown_url):
+    r.post(shutdown_url)
+
+def post_dashboard_mc_params(mc_params, rep, post_mc_url):
+    mc_payload = {"mc_params": list(mc_params),
+                   "tr_num": int(rep)}
+    r.post(post_mc_url, json=mc_payload, timeout=REALTIME_TIMEOUT)
+
+def post_dashboard_clf_outs(clf_outs, rep, post_clf_url):
+    clf_payload = {"clf_outs": list(clf_outs),
+                   "tr_num": int(rep)}
+    r.post(post_clf_url, json=clf_payload, timeout=REALTIME_TIMEOUT)
+
+def demo_realtime_standalone(sleep_time=0.5, num_classes=4, num_mc_params=6, baseline_trs=10, run_trs=170):
+    for tr in range(run_trs):
+        mc_params = list(np.random.rand(num_mc_params).flatten())
+        rep = int(tr)
+        post_dashboard_mc_params(mc_params, rep, POST_MC_URL)
+        if tr >= baseline_trs:
+            clf_outs = list(np.random.rand(num_classes).flatten())
+            post_dashboard_clf_outs(clf_outs, rep, POST_CLF_URL)
+        time.sleep(sleep_time)
 
 def estimate_framewise_displacement(mc_params, gm_radius=50):
     # Framewise displacement definition from Power et al. 2012:
@@ -232,3 +240,15 @@ def start_server(clf_tr_num_shared, mc_tr_num_shared, clf_outs, mc_params):
         shutdown_func()
         return 'Server shutting down...' 
     app.run(host='0.0.0.0')
+
+if __name__ == "__main__":
+    # load initialization parameters from args
+    import argparse
+    parser = argparse.ArgumentParser(description='Function arguments')
+    parser.add_argument('-c','--config', help='Configuration file',default='default')
+    args = parser.parse_args()
+    dashboard = InstaDashboard(args.config)
+    while True:
+        dashboard.check_for_new_data()
+    # add ending condition here
+    dashboard.shutdown_server()
