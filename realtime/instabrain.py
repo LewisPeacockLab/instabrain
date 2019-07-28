@@ -25,7 +25,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.pool = mp.Pool()
 
         # timings
-        self.run_count = 0
+        self.run_count = int(config['start-run'])-1
         self.baseline_trs = config['baseline-trs']
         try:
             feedback_mode = config['feedback-mode'].lower()
@@ -222,12 +222,14 @@ def map_voxels_to_roi(img, roi_voxels):
         out_roi[voxel] = img[roi_voxels[voxel,0],roi_voxels[voxel,1],roi_voxels[voxel,2]]
     return out_roi
 
-def start_watcher(CONFIG, subject_id, config_name, debug_bool=False, logging_bool=False, dashboard_bool=False):
+def start_watcher(CONFIG, subject_id, config_name, debug_bool=False, logging_bool=False,
+        dashboard_bool=False, start_run=1):
     CONFIG['subject-id'] = subject_id
     CONFIG['config-name'] = config_name
     CONFIG['debug-bool'] = debug_bool
     CONFIG['logging_bool'] = logging_bool
     CONFIG['dashboard_bool'] = dashboard_bool
+    CONFIG['start-run'] = start_run
     OBS_TIMEOUT = 0.01
     event_observer = Observer(OBS_TIMEOUT)
     event_handler = InstaWatcher(CONFIG)
@@ -256,6 +258,7 @@ if __name__ == "__main__":
     parser.add_argument('-d','--debug', help='Debugging boolean', action='store_true', default=False)
     parser.add_argument('-l','--logging', help='Logging boolean', action='store_true', default=False)
     parser.add_argument('-b','--dashboard', help='Dashboard display boolean', action='store_true', default=False)
+    parser.add_argument('-r','--startrun', help='Starting run number',default='1')
     args = parser.parse_args()
 
     # load config
@@ -272,7 +275,7 @@ if __name__ == "__main__":
         CONFIG['log_file_time'] = int(np.floor(time.time()))
 
     # start realtime watcher
-    start_watcher(CONFIG, args.subjectid, args.config, args.debug, args.logging, args.dashboard)
+    start_watcher(CONFIG, args.subjectid, args.config, args.debug, args.logging, args.dashboard, args.startrun)
 
     # start remote recon server
     if not(args.debug):
