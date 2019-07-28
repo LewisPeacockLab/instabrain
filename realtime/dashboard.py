@@ -71,15 +71,16 @@ class InstaDashboard(object):
     def plot_mc_tr(self, tr, mc_params=None):
         if mc_params == None:
             mc_params = np.random.rand(self.num_mc_params)
-            mc_params = mc_params-np.mean(mc_params)
-        mc_params_mm = estimate_framewise_displacement(mc_params) # this includes FD, mc_params_mm
-        plt.sca(self.mc_ax)
         if tr==0:
-            self.last_mc_params = np.zeros(self.num_mc_params+1) # +1 to include FD
-        else:
+            self.last_mc_params = np.zeros(self.num_mc_params)
+            self.last_mc_params_mm = np.zeros(self.num_mc_params+1) # +1 to include FD
+        mc_params_mm = estimate_framewise_displacement(mc_params-self.last_mc_params) # this includes FD, mc_params_mm
+        plt.sca(self.mc_ax)
+        if tr>0:
             for mc_param in range(self.num_mc_params+1):
-                plt.plot([tr-1,tr],[self.last_mc_params[mc_param], mc_params_mm[mc_param]],color=self.MC_COLORS[mc_param])
-        self.last_mc_params[:] = mc_params_mm 
+                plt.plot([tr-1,tr],[self.last_mc_params_mm[mc_param], mc_params_mm[mc_param]],color=self.MC_COLORS[mc_param])
+        self.last_mc_params[:] = mc_params
+        self.last_mc_params_mm[:] = mc_params_mm
 
     def plot_feedback_tr(self, tr):
         # just plot a rectangle on top of decoder output plot, marking feedback TRs
