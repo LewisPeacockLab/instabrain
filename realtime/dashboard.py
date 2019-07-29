@@ -58,15 +58,13 @@ class InstaDashboard(object):
     def plot_clf_tr(self, tr, clf_outs=None):
         if clf_outs == None:
             clf_outs = np.random.rand(self.num_classes)
-        plt.sca(self.clf_ax)
-        if tr<self.baseline_trs:
-            pass
-        if tr==self.baseline_trs:
+        if tr==self.baseline_trs-1:
             self.last_clf_outs = 0.5*np.ones(self.num_classes)
-        else:
+        if tr>=self.baseline_trs-1:
+            plt.sca(self.clf_ax)
             for class_num in range(self.num_classes):
                 plt.plot([tr-1,tr],[self.last_clf_outs[class_num],clf_outs[class_num]],color=self.CLF_COLORS[class_num])
-        self.last_clf_outs[:] = clf_outs
+            self.last_clf_outs[:] = clf_outs
 
     def plot_mc_tr(self, tr, mc_params=None):
         if mc_params == None:
