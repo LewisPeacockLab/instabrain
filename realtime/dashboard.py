@@ -90,7 +90,7 @@ class InstaDashboard(object):
         plt.subplots_adjust(hspace=.4, right=.8)
         for ax in (self.clf_ax, self.mc_ax):
             plt.sca(ax)
-            plt.xlim((0,self.run_trs))
+            plt.xlim((0,self.run_trs-1))
             if ax == self.clf_ax:
                 plt.title('Decoder outputs')
                 plt.ylabel('probability')
@@ -167,10 +167,15 @@ class InstaDashboard(object):
     def start_dashboard_server(self):
         self.clf_tr_num_shared = mp.Value('i', -1)
         self.mc_tr_num_shared = mp.Value('i', -1)
+        self.run_dashboard_bool = mp.Value('i', 1)
         self.clf_outs = mp.Array('d', self.num_classes)
         self.mc_params = mp.Array('d', self.num_mc_params)
         self.status_display_thread = t.Thread(target=start_server,
-                                         args=(self.clf_tr_num_shared,self.mc_tr_num_shared,self.clf_outs,self.mc_params))
+                                         args=(self.clf_tr_num_shared,
+                                               self.mc_tr_num_shared,
+                                               self.clf_outs,
+                                               self.mc_params,
+                                               self.run_dashboard_bool))
         self.status_display_thread.start()
 
 
@@ -178,7 +183,7 @@ def load_config(config_name='default'):
     with open('config/'+config_name+'.yml') as f:
         return yaml.load(f)
 
-def shutdown_server(self, shutdown_url):
+def shutdown_server(shutdown_url=SHUTDOWN_URL):
     r.post(shutdown_url)
 
 def post_dashboard_mc_params(mc_params, rep, post_mc_url):
@@ -196,7 +201,7 @@ def demo_realtime_standalone(sleep_time=0.5, num_classes=4, num_mc_params=6, bas
         mc_params = list(np.random.rand(num_mc_params).flatten())
         rep = int(tr)
         post_dashboard_mc_params(mc_params, rep, POST_MC_URL)
-        if tr >= baseline_trs:
+        if tr >= baseline_trs-1:
             clf_outs = list(np.random.rand(num_classes).flatten())
             post_dashboard_clf_outs(clf_outs, rep, POST_CLF_URL)
         time.sleep(sleep_time)
@@ -213,13 +218,14 @@ def estimate_framewise_displacement(mc_params, gm_radius=50):
     mc_params_mm[3:] = gm_radius*np.tan(np.deg2rad(mc_params[3:]))
     return np.append(np.sum(np.abs(mc_params_mm)), mc_params_mm)
 
-def start_server(clf_tr_num_shared, mc_tr_num_shared, clf_outs, mc_params):
+def start_server(clf_tr_num_shared, mc_tr_num_shared, clf_outs, mc_params, running_bool):
     app = Flask(__name__)
 
     app.clf_tr_num_shared = clf_tr_num_shared 
     app.mc_tr_num_shared = mc_tr_num_shared 
     app.clf_outs = clf_outs
     app.mc_params = mc_params 
+    app.running_bool = running_bool
 
     @app.route('/clf_data', methods=['POST'])
     def clf_data():
@@ -235,6 +241,7 @@ def start_server(clf_tr_num_shared, mc_tr_num_shared, clf_outs, mc_params):
         return 'mc_data_received'
     @app.route('/shutdown', methods=['POST'])
     def shutdown():
+        app.running_bool.value = 0
         shutdown_func = request.environ.get('werkzeug.server.shutdown')
         shutdown_func()
         return 'Server shutting down...' 
@@ -247,7 +254,6 @@ if __name__ == "__main__":
     parser.add_argument('-c','--config', help='Configuration file',default='default')
     args = parser.parse_args()
     dashboard = InstaDashboard(args.config)
-    while True:
+    while dashboard.run_dashboard_bool.value:
         dashboard.check_for_new_data()
-    # add ending condition here
-    dashboard.shutdown_server()
+    plt.close()
