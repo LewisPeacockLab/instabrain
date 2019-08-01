@@ -151,6 +151,14 @@ class FingtrainLocalizer(object):
         self.clf.predict(data)
         return self.clf.ca.estimates
 
+    def load_ref_classifier(self):
+        import pickle
+        self.clf = pickle.load(open(self.ref_dir+'/clf.p','rb'))
+        self.cv_clf_outs = np.zeros((self.num_runs*self.trials_per_run,self.n_class))
+        for run in range(self.num_runs):
+            self.cv_clf_outs[run*self.trials_per_run:(run+1)*self.trials_per_run,:] = (
+            self.apply_classifier(self.fmri_data[self.fmri_data.chunks==run]))
+
     def get_cv_clf_outs(self):
         self.cv_clf_outs = np.zeros((self.num_runs*self.trials_per_run,self.n_class))
         for run in range(self.num_runs):
@@ -175,6 +183,38 @@ class FingtrainLocalizer(object):
                 raw_score = clf_data[positive_finger]-clf_data[negative_finger]
                 append_to.append(0.5+0.5*np.copysign(np.power(np.abs(raw_score),
                     score_scale_exponent),raw_score))
+
+    def save_cross_validated_neurofeedback_scores(self, score_scale_exponent=0.5):
+        self.get_cv_clf_outs()
+        cols = ['clf_out_0','clf_out_1','clf_out_2','clf_out_3','neurofeedback_score',
+                'behavioral_score','reward_dollars','target_finger','trial','run']
+        idxs = range(len(self.trial_targets))
+        self.nfb_score_df = pd.DataFrame(index=idxs,columns=cols)
+
+        for idx,target_finger in enumerate(self.trial_targets):
+            clf_data = self.cv_clf_outs[idx,:]
+            if target_finger == 0:
+                positive_finger = 1
+                negative_finger = -1
+            elif target_finger == 1:
+                positive_finger = 0
+                negative_finger = 2
+            elif target_finger == 2:
+                positive_finger = 3
+                negative_finger = 1
+            elif target_finger == 3:
+                positive_finger = 2
+                negative_finger = -1
+            if target_finger in [1,2]:
+                raw_score = clf_data[positive_finger]-clf_data[negative_finger]
+                adjusted_score = (0.5+0.5*np.copysign(np.power(np.abs(raw_score),
+                    score_scale_exponent),raw_score))
+            elif target_finger in [0,3]:
+                raw_score = clf_data[positive_finger]
+                adjusted_score = np.power(raw_score, score_scale_exponent)
+            self.nfb_score_df.loc[idx,['clf_out_0','clf_out_1','clf_out_2','clf_out_3']] = [clf_data[0],clf_data[1],clf_data[2],clf_data[3]]
+            self.nfb_score_df.loc[idx,['neurofeedback_score','target_finger','trial','run']] = [adjusted_score,target_finger,idx,self.trial_chunks[idx]]
+        self.nfb_score_df = self.nfb_score_df.fillna(0)
 
     def plot_neurofeedback_score(self, score_scale_exponent=0.5):
         import matplotlib.pyplot as plt
