@@ -12,7 +12,7 @@ SHUTDOWN_URL = 'http://127.0.0.1:5000/shutdown'
 REALTIME_TIMEOUT = 0.1
 
 class InstaDashboard(object):
-    def __init__(self, config_name='fingtrain', num_classes=4, num_mc_params=6, max_mc_display=5, fd_scale_factor=2):
+    def __init__(self, config_name='fingtrain', num_classes=4, num_mc_params=6, max_mc_display=2, fd_scale_factor=2):
         self.post_clf_url = POST_CLF_URL
         self.post_mc_url = POST_MC_URL
         self.shutdown_url = SHUTDOWN_URL
@@ -135,6 +135,10 @@ class InstaDashboard(object):
             self.check_for_clf_data()
             plt.pause(0.001)
         if self.clf_tr_num == self.run_trs-1:
+            if self.active_bool:
+                print '---------------'
+                print ' run complete! '
+                print '---------------'
             self.active_bool = False
 
     def check_for_clf_data(self):
