@@ -74,6 +74,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.clf = pickle.load(open(self.clf_file,'rb'))
         self.num_roi_voxels = np.shape(self.clf.voxel_indices)[0]
         self.archive_bool = config['archive-data']
+        self.archive_dir = config['archive-dir']
         self.reset_img_arrays()
 
         # networking
@@ -127,11 +128,12 @@ class InstaWatcher(PatternMatchingEventHandler):
         # is triggered by PatternMatchingEventHandler when dicom is created
         print(event.src_path)
         img_dir = event.src_path.rsplit('/', 1)[0]
-        print('dicom directory: ' + img_dir)
+        # print('dicom directory: ' + img_dir)
         img_file = event.src_path.rsplit('/')[-1]
-        print('dicom to convert: ' + img_file)
+        # print('dicom to convert: ' + img_file)
         rep = int(img_file.split('_')[-1].split('.dcm')[0])-1
         self.raw_nii = convert_dicom_to_nii(img_file,self.proc_dir,img_dir,img_file.split('_')[-1].split('.dcm')[0])
+        os.system('rm ' + self.proc_dir + '/*.dcm')
 
         # self.raw_nii = convert_dicom_to_nii(event.src_path,self.proc_dir,img_dir)
 
@@ -174,6 +176,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             clf_out = self.apply_classifier(zscore_avg_roi)
             out_data = np.append(clf_out, self.target_class)
             self.send_clf_outputs(out_data)
+            # print('fb sent')
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
 
         # dashboard outputs 
@@ -209,26 +212,39 @@ class InstaWatcher(PatternMatchingEventHandler):
         if self.try_dashboard_connection:
             self.dashboard_bool = True
         self.run_count += 1
-        for target_dir in [self.proc_dir, self.watch_dir]:
-            if self.archive_bool:
-                run_dir = target_dir+'/run_'+str(self.run_count).zfill(2)
-                os.mkdir(run_dir)
-                if target_dir == self.proc_dir:
-                    os.system('cat '+target_dir+'/*.txt > '+run_dir+'/mc_params.txt 2>/dev/null')
-                    os.system('rm '+target_dir+'/*.txt 2>/dev/null')
-                os.system('mv '+target_dir+'/*.* '+run_dir+' 2>/dev/null')
-            os.system('rm '+target_dir+'/*.* 2>/dev/null')
+        # for target_dir in [self.proc_dir, self.watch_dir]:
+        if self.archive_bool:
+            for target_dir in [self.proc_dir, self.watch_dir]:
+                if self.archive_bool:
+                    run_dir = self.archive_dir+'/run_'+str(self.run_count).zfill(2)
+                    if not(os.path.exists(run_dir)):
+                        os.mkdir(run_dir)
+                    if target_dir == self.proc_dir:
+                        os.system('cat '+target_dir+'/*.txt > '+run_dir+'/mc_params.txt 2>/dev/null')
+                        os.system('rm '+target_dir+'/*.txt 2>/dev/null')
+                        os.system('mv '+target_dir+'/*.* '+run_dir+' 2>/dev/null')
+                    elif target_dir == self.watch_dir:
+                        os.system('mv '+self.watch_dir+'/*/*.dcm '+run_dir+' 2>/dev/null')
+                os.system('rm '+target_dir+'/*.* 2>/dev/null')
+
+            # run_dir = self.proc_dir+'/run_'+str(self.run_count).zfill(2)
+            # if not(os.path.exists(run_dir)):
+            #     os.mkdir(run_dir)
+            # os.system('cat '+self.proc_dir+'/*.txt > '+run_dir+'/mc_params.txt 2>/dev/null')
+            # os.system('rm '+self.proc_dir+'/*.txt 2>/dev/null')
+            # os.system('mv '+self.proc_dir+'/*.* '+run_dir+' 2>/dev/null')
+            # os.system('mv '+self.watch_dir+'/*/*.dcm '+run_dir+' 2>/dev/null')
         self.reset_img_arrays()
 
 # standalone functions
 def process_volume(raw_nii, roi_voxels, rep, rfi_file,
         proc_dir, ref_header, ref_affine, mc_mode):
-    # temp_file = proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
+    temp_file = proc_dir +'/'+raw_nii #proc_dir + '/img_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_file = proc_dir + '/img_mc_' + str(rep+1).zfill(3) + '.nii.gz'
     mc_params_file = proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'
     # nib.save(nib.Nifti1Image(raw_img, ref_affine, header=ref_header), temp_file)
     if mc_mode == 'afni':
-        os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' -1Dfile '+mc_params_file+' '+raw_nii+' 2>/dev/null')
+        os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' -1Dfile '+mc_params_file+' '+temp_file+' 2>/dev/null')
     elif mc_mode == 'fsl':
         os.system('mcflirt -in '+raw_nii+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
     elif mc_mode == 'none':
@@ -268,18 +284,15 @@ def start_watcher(CONFIG, subject_id, session, config_name, debug_bool=False, lo
 def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num):
     os.system('cp ' + dcm_dir + '/' + dcm_file + ' ' + nii_outdir)
     os.chdir(nii_outdir)
-    # print(os.system('ls'))
     converter = Dcm2niix()
     converter.inputs.source_names = dcm_file
-    print(converter.inputs.source_names)
     converter.inputs.output_dir = nii_outdir
     converter.inputs.compress = 'n'
     converter.inputs.single_file = True
     converter.inputs.out_filename = '%z_%s_' + TR_num
-    print(converter.cmdline)
+    # print(converter.cmdline)
     converter.run()
     new_nii_file = converter.output_files[0].split('/')[-1]
-    os.system('rm ' + nii_outdir + '/*.dcm')
     return new_nii_file
 
 def write_log_header(log_file):
@@ -303,7 +316,7 @@ if __name__ == "__main__":
 
     # load config
     with open('config/'+args.config+'.yml') as f:
-        CONFIG = yaml.load(f)
+        CONFIG = yaml.load(f, Loader=yaml.FullLoader)
 
     # set debug parameters
     if args.debug:

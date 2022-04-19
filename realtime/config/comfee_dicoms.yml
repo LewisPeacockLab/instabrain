@@ -3,9 +3,10 @@
 #############################################
 
 # file processing
-watch-dir: /Users/el27322/Documents/instabrain_test #/home/skyrahost/sambashare #/home/instabrain/mridump
+watch-dir: /home/skyrahost/sambashare #/home/instabrain/mridump
 recon-script: /home/instabrain/recon-scripts/runLocal_CPU_copy.sh
 archive-data: True
+archive-dir : /Users/el27322/Documents/instabrain_test/mridump #/home/instabrain/mridump
 
 # networking
 post-url: http://169.254.137.200:5000/rt_data #http://127.0.0.1:5000/rt_data
