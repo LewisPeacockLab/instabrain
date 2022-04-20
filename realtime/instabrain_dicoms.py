@@ -135,9 +135,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.raw_nii = convert_dicom_to_nii(img_file,self.proc_dir,img_dir,img_file.split('_')[-1].split('.dcm')[0])
         os.system('rm ' + self.proc_dir + '/*.dcm')
 
-        # self.raw_nii = convert_dicom_to_nii(event.src_path,self.proc_dir,img_dir)
-
-        if self.raw_nii.split('_')[0] == 'epfid2d1':
+        if ('epi' in self.raw_nii) and ('SBRef' not in self.raw_nii):
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_start', rep)
             self.pool.apply_async(func = process_volume,
                 args = (self.raw_nii,self.clf.voxel_indices,
@@ -145,22 +143,6 @@ class InstaWatcher(PatternMatchingEventHandler):
                     self.ref_affine, self.mc_mode),
                 callback = self.save_processed_roi)
 
-    # def on_moved(self, event):
-    #     # is triggered when full .imgdat file received
-    #     img_file = event.src_path.rsplit('/')[-1].rsplit('.tmp')[0]
-    #     rep = int(img_file.split('-R')[1].split('-')[0])-1
-    #     slc = int(img_file.split('-S')[1].split('.')[0])-1
-    #     with open(event.src_path.rsplit('.tmp')[0]) as f:
-    #         self.raw_img_array[:,:,slc,rep] = np.rot90(np.fromfile(f,dtype=np.uint16).reshape(self.slice_dims),k=-1)
-    #     self.img_status_array[rep] += 1
-    #     if self.logging_bool: write_log(self.log_file, self.log_file_time, 'slc_'+str(slc), rep)
-    #     if self.img_status_array[rep] == self.num_slices:
-    #         if self.logging_bool: write_log(self.log_file, self.log_file_time, 'mc_start', rep)
-    #         self.pool.apply_async(func = process_volume,
-    #             args = (self.raw_img_array[:,:,:,rep],self.clf.voxel_indices,
-    #                 rep,self.rfi_file,self.proc_dir,self.ref_header,
-    #                 self.ref_affine, self.mc_mode),
-    #             callback = self.save_processed_roi)
 
     def save_processed_roi(self, roi_and_rep_data):
         (roi_data,rep) = roi_and_rep_data 
@@ -212,7 +194,6 @@ class InstaWatcher(PatternMatchingEventHandler):
         if self.try_dashboard_connection:
             self.dashboard_bool = True
         self.run_count += 1
-        # for target_dir in [self.proc_dir, self.watch_dir]:
         if self.archive_bool:
             for target_dir in [self.proc_dir, self.watch_dir]:
                 if self.archive_bool:
@@ -226,14 +207,6 @@ class InstaWatcher(PatternMatchingEventHandler):
                     elif target_dir == self.watch_dir:
                         os.system('mv '+self.watch_dir+'/*/*.dcm '+run_dir+' 2>/dev/null')
                 os.system('rm '+target_dir+'/*.* 2>/dev/null')
-
-            # run_dir = self.proc_dir+'/run_'+str(self.run_count).zfill(2)
-            # if not(os.path.exists(run_dir)):
-            #     os.mkdir(run_dir)
-            # os.system('cat '+self.proc_dir+'/*.txt > '+run_dir+'/mc_params.txt 2>/dev/null')
-            # os.system('rm '+self.proc_dir+'/*.txt 2>/dev/null')
-            # os.system('mv '+self.proc_dir+'/*.* '+run_dir+' 2>/dev/null')
-            # os.system('mv '+self.watch_dir+'/*/*.dcm '+run_dir+' 2>/dev/null')
         self.reset_img_arrays()
 
 # standalone functions
@@ -289,7 +262,9 @@ def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num):
     converter.inputs.output_dir = nii_outdir
     converter.inputs.compress = 'n'
     converter.inputs.single_file = True
-    converter.inputs.out_filename = '%z_%s_' + TR_num
+    converter.inputs.out_filename = '%d_%s_' + TR_num
+
+    # converter.inputs.out_filename = '%z_%s_' + TR_num
     # print(converter.cmdline)
     converter.run()
     new_nii_file = converter.output_files[0].split('/')[-1]
