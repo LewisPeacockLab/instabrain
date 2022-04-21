@@ -5,10 +5,9 @@ import multiprocessing as mp
 import numpy as np
 from scipy.signal import detrend
 import nibabel as nib
-from nipype.interfaces.dcm2nii import Dcm2niix
 import os, sys, glob, yaml, time, pickle, subprocess
 import requests as r
-# from dashboard import post_dashboard_mc_params, post_dashboard_clf_outs
+from dashboard import post_dashboard_mc_params, post_dashboard_clf_outs
 
 REALTIME_TIMEOUT = 0.1 # seconds to HTTP post timeout
 
@@ -60,6 +59,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         self.ref_affine = self.rfi_img.get_qform()
         self.ref_header = self.rfi_img.header
         self.clf_file = glob.glob(self.ref_dir+'/*clf.p')[0]
+        self.dcm2niix_dir = os.getcwd()
         # optional: target class can be specified in backend
         try:
             self.target_class = int(np.loadtxt(self.ref_dir+'/class.txt'))
@@ -132,7 +132,7 @@ class InstaWatcher(PatternMatchingEventHandler):
         img_file = event.src_path.rsplit('/')[-1]
         # print('dicom to convert: ' + img_file)
         rep = int(img_file.split('_')[-1].split('.dcm')[0])-1
-        self.raw_nii = convert_dicom_to_nii(img_file,self.proc_dir,img_dir,img_file.split('_')[-1].split('.dcm')[0])
+        self.raw_nii = convert_dicom_to_nii(img_file,self.proc_dir,img_dir,img_file.split('_')[-1].split('.dcm')[0],self.dcm2niix_dir)
         os.system('rm ' + self.proc_dir + '/*.dcm')
 
         if ('epi' in self.raw_nii) and ('SBRef' not in self.raw_nii):
@@ -254,20 +254,13 @@ def start_watcher(CONFIG, subject_id, session, config_name, debug_bool=False, lo
 #     os.chdir(CONFIG['watch-dir'])
 #     subprocess.Popen(RECON_SCRIPT, shell=True)
 
-def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num):
+def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num,dcm2niix_dir):
     os.system('cp ' + dcm_dir + '/' + dcm_file + ' ' + nii_outdir)
     os.chdir(nii_outdir)
-    converter = Dcm2niix()
-    converter.inputs.source_names = dcm_file
-    converter.inputs.output_dir = nii_outdir
-    converter.inputs.compress = 'n'
-    converter.inputs.single_file = True
-    converter.inputs.out_filename = '%d_%s_' + TR_num
+    os.system(dcm2niix_dir + '/dcm2niix -b y -z n -x n -t n -m n -f %d_%s_' + TR_num + ' -o ' + nii_outdir + ' -s y -v n .')
+    proc_epis = glob.glob(nii_outdir+'/*.nii') 
+    new_nii_file = max(proc_epis, key=os.path.getctime).split('/')[-1]
 
-    # converter.inputs.out_filename = '%z_%s_' + TR_num
-    # print(converter.cmdline)
-    converter.run()
-    new_nii_file = converter.output_files[0].split('/')[-1]
     return new_nii_file
 
 def write_log_header(log_file):
