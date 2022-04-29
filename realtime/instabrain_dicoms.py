@@ -13,7 +13,8 @@ REALTIME_TIMEOUT = 0.1 # seconds to HTTP post timeout
 
 class InstaWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
-        file_pattern = '*.' + config['subject-id'] + '_' + str(config['session-number']) + '/*.dcm'
+        file_pattern = '*.dcm'
+        #file_pattern = '*.' + config['subject-id'] + '_' + str(config['session-number']) + '/*.dcm'
         print('Looking for file pattern: ' + file_pattern)
         PatternMatchingEventHandler.__init__(self, 
             patterns=[file_pattern],
@@ -67,6 +68,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.target_class = -1
         self.proc_dir = os.getcwd()+'/proc'
         self.watch_dir = config['watch-dir']
+        #self.watch_dir = config['watch-dir']+'/*.' + config['subject-id'] + '_' + str(config['session-number']) + '/'
 
         # logic and initialization
         self.slice_dims = (self.rfi_data.shape[0],self.rfi_data.shape[1])
@@ -257,7 +259,8 @@ def start_watcher(CONFIG, subject_id, session, config_name, debug_bool=False, lo
 def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num,dcm2niix_dir):
     os.system('cp ' + dcm_dir + '/' + dcm_file + ' ' + nii_outdir)
     os.chdir(nii_outdir)
-    os.system(dcm2niix_dir + '/dcm2niix -b y -z n -x n -t n -m n -f %d_%s_' + TR_num + ' -o ' + nii_outdir + ' -s y -v n .')
+    os.system('dcm2niix -b y -z n -x n -t n -m n -f %d_%s_' + TR_num + ' -o ' + nii_outdir + ' -s y -v n .')
+    #os.system(dcm2niix_dir + '/dcm2niix -b y -z n -x n -t n -m n -f %d_%s_' + TR_num + ' -o ' + nii_outdir + ' -s y -v n .')
     proc_epis = glob.glob(nii_outdir+'/*.nii') 
     new_nii_file = max(proc_epis, key=os.path.getctime).split('/')[-1]
 
@@ -284,11 +287,13 @@ if __name__ == "__main__":
 
     # load config
     with open('config/'+args.config+'.yml') as f:
-        CONFIG = yaml.load(f, Loader=yaml.FullLoader)
+        CONFIG = yaml.load(f)#, Loader=yaml.FullLoader)
 
     # set debug parameters
     if args.debug:
-        CONFIG['watch-dir'] = '/Users/el27322/Documents/instabrain/data/dump' #'../data/dump'
+        CONFIG['watch-dir'] = '../data/dump'
+    else:
+	CONFIG['watch-dir'] = glob.glob(CONFIG['watch-dir']+'/*.' + args.subjectid + '_' + str(args.session) + '/')[0]
 
     # set logging parameters and start logging 
     if args.logging:
