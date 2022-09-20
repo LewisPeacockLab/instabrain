@@ -1,3 +1,4 @@
+
 from watchdog.events import PatternMatchingEventHandler
 # from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
@@ -10,6 +11,8 @@ import requests as r
 from dashboard import post_dashboard_mc_params, post_dashboard_clf_outs
 
 REALTIME_TIMEOUT = 0.1 # seconds to HTTP post timeout
+# dw: can try to allow more time before the connection times out:
+#REALTIME_TIMEOUT = 0.5
 
 class InstaWatcher(PatternMatchingEventHandler):
     def __init__(self, config):
@@ -81,6 +84,7 @@ class InstaWatcher(PatternMatchingEventHandler):
 
         # networking
         self.post_url = config['post-url']
+        # dw: is this a good place to print the post url?
 
         # event logging
         if config['logging_bool']:
@@ -115,6 +119,7 @@ class InstaWatcher(PatternMatchingEventHandler):
             self.clf.predict(np.ndarray((1,self.num_roi_voxels),buffer=data))
         else:
             self.clf.predict(np.random.normal(0,1,(1,self.num_roi_voxels)))
+            print('debugging mode: classifier value is random')
         return self.clf.ca.estimates
 
     def reset_img_arrays(self):
@@ -158,9 +163,10 @@ class InstaWatcher(PatternMatchingEventHandler):
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
             clf_out = self.apply_classifier(zscore_avg_roi)
+            print('clf_out is ' + str(clf_out))
             out_data = np.append(clf_out, self.target_class)
             self.send_clf_outputs(out_data)
-            # print('fb sent')
+            print('feedback sent')
             if self.logging_bool: write_log(self.log_file, self.log_file_time, 'fb_sent', rep)
 
         # dashboard outputs 
@@ -177,15 +183,19 @@ class InstaWatcher(PatternMatchingEventHandler):
         payload = {"clf_outs": list(out_data[:-1]),
             "target_class": out_data[-1],
             "feedback_num": self.feedback_count}
+        print(payload)  # dw
         try:
             r.post(self.post_url, json=payload, timeout=REALTIME_TIMEOUT)
+            # dw: how to print out the current url?
         except:
             pass
 
     def check_for_dashboard(self, rep):
         if rep >= (self.baseline_trs-1):
             detrend_roi_array = detrend(self.raw_roi_array[:,:rep+1],1)
+            print('roi array detrended')    # dw
             zscore_avg_roi = np.mean(detrend_roi_array[:,-self.moving_avg_trs:],1)/self.voxel_sigmas
+            print('zscore avg roi is ' + str(zscore_avg_roi))   # dw
             clf_out = self.apply_classifier(zscore_avg_roi)
             post_dashboard_clf_outs(clf_out[0], rep, self.dashboard_clf_url)
         mc_params_file = self.proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'            
@@ -219,11 +229,14 @@ def process_volume(raw_nii, roi_voxels, rep, rfi_file,
     mc_params_file = proc_dir +'/mc_params_' + str(rep+1).zfill(3) + '.txt'
     # nib.save(nib.Nifti1Image(raw_img, ref_affine, header=ref_header), temp_file)
     if mc_mode == 'afni':
+        #print('mc_mode is afni')
         os.system('3dvolreg -prefix '+mc_file+' -base '+rfi_file+' -1Dfile '+mc_params_file+' '+temp_file+' 2>/dev/null')
     elif mc_mode == 'fsl':
         os.system('mcflirt -in '+raw_nii+' -dof 6 -reffile '+rfi_file+' -out '+mc_file)
+        #print('mc_mode is fsl')
     elif mc_mode == 'none':
         os.system('cp '+raw_nii+' '+mc_file)
+        #print('mc_mode is none')
     roi_data = map_voxels_to_roi(nib.load(mc_file).get_data(),roi_voxels)
     return (roi_data, rep)
 
@@ -242,7 +255,8 @@ def start_watcher(CONFIG, subject_id, session, config_name, debug_bool=False, lo
     CONFIG['logging_bool'] = logging_bool
     CONFIG['dashboard_bool'] = dashboard_bool
     CONFIG['start-run'] = start_run
-    OBS_TIMEOUT = 0.01
+    #OBS_TIMEOUT = 0.01
+    OBS_TIMEOUT = 0.1 #dw make the observer time out longer
     event_observer = PollingObserver(OBS_TIMEOUT)
     # event_observer = Observer(OBS_TIMEOUT)
     event_handler = InstaWatcher(CONFIG)
@@ -263,7 +277,7 @@ def convert_dicom_to_nii(dcm_file,nii_outdir,dcm_dir,TR_num,dcm2niix_dir):
     #os.system(dcm2niix_dir + '/dcm2niix -b y -z n -x n -t n -m n -f %d_%s_' + TR_num + ' -o ' + nii_outdir + ' -s y -v n .')
     proc_epis = glob.glob(nii_outdir+'/*.nii') 
     new_nii_file = max(proc_epis, key=os.path.getctime).split('/')[-1]
-
+    print ('returning new_nii_file')
     return new_nii_file
 
 def write_log_header(log_file):
